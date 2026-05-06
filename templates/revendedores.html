@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Alertas Operativas - Revendedores</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/estilos.css') }}">
+</head>
+<body>
+    <div class="header-custom">
+        <i class="fas fa-chevron-left"></i>
+        <h5 class="m-0">Alertas Operativas</h5>
+        <i class="fas fa-filter"></i>
+    </div>
+
+    <div class="nav-tabs-custom">
+        <a href="{{ url_for('index') }}" class="tab-item">
+            <i class="fas fa-exclamation-triangle"></i> Quiebres
+            <span class="badge-notif">{{ total_q }}</span>
+        </a>
+        <a href="{{ url_for('revendedores') }}" class="tab-item active">
+            <i class="fas fa-users"></i> Revendedores
+            <span class="badge-notif badge-rev">{{ total_r }}</span>
+        </a>
+    </div>
+
+    <div class="container mt-5 text-center">
+        <div class="py-5">
+            <i class="fas fa-user-shield fa-5x text-secondary mb-4"></i>
+            <h4 class="text-dark">Módulo de Revendedores</h4>
+            <p class="text-muted px-4">Detectando patrones de compra inusuales en la tienda de Santa Victoria.</p>
+            <div class="alert alert-warning mx-3" style="border-radius: 15px;">
+                <i class="fas fa-info-circle"></i> No hay comportamientos sospechosos detectados en las últimas 24 horas.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

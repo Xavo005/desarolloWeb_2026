@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Tottus Inventory - Segmentación</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div class="mobile-frame">
+            
+            <section id="view-lista" class="app-view">
+                <header class="app-header">
+                    <div class="header-content">
+                        <h1>Segmentación</h1>
+                        <p>Reglas activas</p>
+                    </div>
+                    <button class="btn-add-circle" id="btnNuevaRegla">+</button>
+                </header>
+
+                <div class="main-content">
+                    <div class="search-box">
+                        <input type="text" id="filterInput" placeholder="Buscar producto o SKU...">
+                    </div>
+
+                    <div class="stats-row">
+                        <div class="stat-card">
+                            <span id="statActivas">0</span>
+                            <label>Activas</label>
+                        </div>
+                        <div class="stat-card">
+                            <span id="statTotal">0</span>
+                            <label>Total</label>
+                        </div>
+                    </div>
+
+                    <div id="rulesContainer" class="cards-list">
+                        </div>
+                </div>
+            </section>
+
+            <section id="view-formulario" class="app-view hidden">
+                <header class="app-header-form">
+                    <button id="btnVolver" class="btn-back">←</button>
+                    <h2>Ajuste de Segmentación</h2>
+                </header>
+
+                <div class="main-content">
+                    <div class="form-card">
+                        <div class="field">
+                            <label>Producto a segmentar</label>
+                            <select id="selectProducto" class="input-field"></select>
+                        </div>
+
+                        <div class="distribution-card">
+                            <h3>Distribución de Stock</h3>
+                            <div class="dist-grid">
+                                <div class="dist-col">
+                                    <input type="number" id="inputFinal" placeholder="0">
+                                    <span>Cliente Final</span>
+                                </div>
+                                <div class="dist-divider">VS</div>
+                                <div class="dist-col">
+                                    <input type="number" id="inputRevendedor" placeholder="0">
+                                    <span>Revendedor</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <label>Motivo del ajuste</label>
+                            <textarea id="inputMotivo" class="input-field" placeholder="Detalles del ajuste..."></textarea>
+                        </div>
+
+                        <button id="btnGuardar" class="btn-save">Guardar Cambios</button>
+                    </div>
+                </div>
+            </section>
+
+            <nav class="bottom-nav">
+                <div class="nav-item active"><span>Reglas</span></div>
+                <div class="nav-item"><span>Scan</span></div>
+                <div class="nav-item"><span>Perfil</span></div>
+            </nav>
+
+        </div>
+    </div>
+
+    <script src="/static/js/segmentacion.js"></script>
+</body>
+</html>

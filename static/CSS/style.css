@@ -1,0 +1,74 @@
+:root {
+    --tottus-green: #009639;
+    --bg-gray: #f0f2f5;
+    --text-dark: #2d3748;
+    --text-muted: #718096;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Sora', sans-serif; background-color: #d1d5db; color: var(--text-dark); }
+
+/* Centrar la app en PC para que parezca móvil */
+.app-wrapper {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+}
+
+.mobile-frame {
+    width: 100%;
+    max-width: 480px;
+    height: 100%;
+    background-color: var(--bg-gray);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 40px rgba(0,0,0,0.2);
+}
+
+/* Manejo de vistas */
+.hidden { display: none !important; }
+.app-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Headers */
+.app-header { background: var(--tottus-green); color: white; padding: 25px 20px; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; display: flex; justify-content: space-between; align-items: center; }
+.app-header h1 { font-size: 20px; }
+.app-header p { font-size: 13px; opacity: 0.8; }
+
+.app-header-form { background: var(--tottus-green); color: white; padding: 15px; display: flex; align-items: center; gap: 15px; }
+
+/* Botones */
+.btn-add-circle { width: 45px; height: 45px; border-radius: 50%; border: none; background: white; color: var(--tottus-green); font-size: 28px; font-weight: bold; cursor: pointer; }
+.btn-back { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
+.btn-save { width: 100%; padding: 15px; background: var(--tottus-green); color: white; border: none; border-radius: 12px; font-weight: bold; margin-top: 20px; cursor: pointer; }
+
+/* Contenido y Tarjetas */
+.main-content { padding: 20px; flex: 1; overflow-y: auto; padding-bottom: 90px; }
+
+.stats-row { display: flex; gap: 15px; margin-bottom: 20px; }
+.stat-card { flex: 1; background: white; padding: 15px; border-radius: 15px; text-align: center; border: 1px solid #e2e8f0; }
+.stat-card span { display: block; font-size: 24px; font-weight: bold; color: var(--tottus-green); }
+.stat-card label { font-size: 12px; color: var(--text-muted); }
+
+.search-box input { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #ddd; margin-bottom: 15px; }
+
+.rule-card { background: white; padding: 15px; border-radius: 15px; border: 1px solid #e2e8f0; margin-bottom: 12px; }
+.rule-card .sku { font-size: 10px; color: var(--tottus-green); font-weight: bold; }
+.rule-card .name { font-weight: 600; margin-bottom: 8px; display: block; }
+
+/* Formulario Estilo Wireframe */
+.form-card { background: white; padding: 20px; border-radius: 20px; }
+.field { margin-bottom: 15px; }
+.field label { display: block; font-size: 12px; margin-bottom: 5px; color: var(--text-muted); }
+.input-field { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; }
+
+.distribution-card { background: #f8fafc; padding: 15px; border-radius: 12px; border: 1px dashed var(--tottus-green); text-align: center; }
+.dist-grid { display: flex; justify-content: space-around; align-items: center; margin-top: 10px; }
+.dist-col input { width: 60px; font-size: 20px; text-align: center; border: none; background: none; font-weight: bold; }
+.dist-col span { display: block; font-size: 11px; color: var(--text-muted); }
+
+/* Nav Inferior */
+.bottom-nav { position: absolute; bottom: 0; width: 100%; height: 75px; background: white; border-top: 1px solid #eee; display: flex; justify-content: space-around; align-items: center; }
+.nav-item { font-size: 10px; color: var(--text-muted); text-align: center; }
+.nav-item.active { color: var(--tottus-green); font-weight: bold; }
