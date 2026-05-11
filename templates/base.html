@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Tottus SGI{% endblock %} — Sistema Gerencial</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{# ── Navegación: 5 ítems definidos una sola vez ──────────────── #}
+{%- set nav = [
+  ('dashboard',  'Inicio',    'fa-house',  url_for('dashboard')),
+  ('productos',  'Productos', 'fa-box',    url_for('segmentacion')),
+  ('escanear',   'Escanear',  'fa-qrcode', '#'),
+  ('alertas',    'Alertas',   'fa-bell',   url_for('alertas')),
+  ('perfil',     'Perfil',    'fa-user',   url_for('perfil')),
+] -%}
+{%- set cur = active_page | default('dashboard') -%}
+
+<!-- ══════════ MASTER HEADER (móvil) ══════════ -->
+<header class="master-header">
+  <span class="hdr-brand">TOTTUS</span>
+  <span class="hdr-title">{% block page_title %}{% endblock %}</span>
+  <a href="{{ url_for('alertas') }}" class="hdr-bell">
+    <i class="fa-solid fa-bell"></i>
+    {% if alertas_count and alertas_count > 0 %}
+      <span class="alert-badge">{{ alertas_count }}</span>
+    {% endif %}
+  </a>
+</header>
+
+<!-- ══════════ SIDEBAR (PC) ══════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <span class="sb-logo">TOTTUS</span>
+    <span class="sb-sub">Sistema Gerencial</span>
+  </div>
+  <hr class="sb-divider">
+  <nav class="sb-nav">
+    {% for key, label, icon, href in nav %}
+      <a href="{{ href }}"
+         class="sb-item {% if key == cur %}active{% endif %}"
+         {% if key == 'alertas' and alertas_count %}data-badge="{{ alertas_count }}"{% endif %}>
+        <i class="fa-solid {{ icon }}"></i>
+        <span>{{ label }}</span>
+        {% if key == 'alertas' and alertas_count and alertas_count > 0 %}
+          <span class="sb-badge">{{ alertas_count }}</span>
+        {% endif %}
+      </a>
+    {% endfor %}
+  </nav>
+  <div class="sb-user">
+    <div class="sb-avatar">{{ session.nombre[0] | upper if session.nombre else 'U' }}</div>
+    <div class="sb-user-info">
+      <span class="sb-user-name">{{ session.nombre }}</span>
+      <span class="sb-user-role">{{ session.rol | capitalize }}</span>
+    </div>
+    <a href="{{ url_for('logout') }}" class="sb-logout" title="Cerrar sesión">
+      <i class="fa-solid fa-arrow-right-from-bracket"></i>
+    </a>
+  </div>
+</aside>
+
+<!-- ══════════ CONTENIDO PRINCIPAL ══════════ -->
+<main class="main-content">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ══════════ TAB-BAR (móvil) ══════════ -->
+<nav class="tab-bar">
+  {% for key, label, icon, href in nav %}
+    <a href="{{ href }}"
+       class="tab-item {% if key == cur %}active{% endif %} {% if key == 'escanear' %}tab-scan{% endif %}">
+      <div class="tab-icon-wrap">
+        <i class="fa-solid {{ icon }}"></i>
+        {% if key == 'alertas' and alertas_count and alertas_count > 0 %}
+          <span class="tab-badge">{{ alertas_count }}</span>
+        {% endif %}
+      </div>
+      <span class="tab-label">{{ label }}</span>
+    </a>
+  {% endfor %}
+</nav>
+
+<!-- ══════════ TOAST CONTAINER ══════════ -->
+<div id="toast-container" aria-live="polite"></div>
+
+<!-- ══════════ MODAL CONFIRMACIÓN ELIMINAR ══════════ -->
+<div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
+  <div class="modal-card">
+    <div class="modal-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <h3 class="modal-title">¿Confirmar eliminación?</h3>
+    <p class="modal-msg" id="modal-msg">Esta acción no se puede deshacer.</p>
+    <div class="modal-actions">
+      <button class="btn-secondary" id="modal-cancel">Cancelar</button>
+      <button class="btn-danger"    id="modal-confirm">Sí, eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="px-4" style="max-width:1100px;margin:0 auto;padding-top:24px">
+
+  <!-- Bienvenida -->
+  <div class="card mb-4">
+    <div class="flex items-center justify-between">
+      <div>
+        <div style="font-size:18px;font-weight:700">Hola, {{ session.nombre.split()[0] }} 👋</div>
+        <div class="text-muted text-sm mt-2">{{ session.sede }}</div>
+        <div class="text-green text-sm mt-2" id="fecha-hora"></div>
+      </div>
+      <div style="width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">
+        {{ session.nombre[0] | upper }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-grid mb-4">
+    <div class="card stat-card" style="border-left:4px solid var(--danger)">
+      <div class="stat-value text-red">{{ stats.alertas_criticas }}</div>
+      <div class="stat-label">Quiebres Activos</div>
+    </div>
+    <div class="card stat-card" style="border-left:4px solid var(--primary)">
+      <div class="stat-value text-green">{{ stats.total_productos }}</div>
+      <div class="stat-label">Productos</div>
+    </div>
+    <div class="card stat-card" style="border-left:4px solid var(--warning)">
+      <div class="stat-value text-amber" id="stat-pendientes">—</div>
+      <div class="stat-label">Ajustes Hoy</div>
+    </div>
+    <div class="card stat-card" style="border-left:4px solid var(--primary)">
+      <div class="stat-value text-green">{{ alertas_count }}</div>
+      <div class="stat-label">Alertas Urgentes</div>
+    </div>
+  </div>
+
+  <!-- Accesos Rápidos -->
+  <div style="font-size:16px;font-weight:600;margin-bottom:12px">Accesos Rápidos</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px">
+    <a href="{{ url_for('segmentacion') }}" class="card card-sm flex items-center gap-3" style="border-left:3px solid var(--primary)">
+      <i class="fa-solid fa-qrcode" style="font-size:24px;color:var(--primary)"></i>
+      <span class="font-semi text-sm">Escanear Producto</span>
+    </a>
+    <a href="{{ url_for('alertas') }}" class="card card-sm flex items-center gap-3" style="position:relative">
+      <i class="fa-solid fa-bell" style="font-size:24px;color:var(--warning)"></i>
+      <span class="font-semi text-sm">Ver Alertas</span>
+      {% if alertas_count > 0 %}
+        <span class="alert-badge" style="position:absolute;top:10px;right:12px">{{ alertas_count }}</span>
+      {% endif %}
+    </a>
+    <a href="{{ url_for('historial') }}" class="card card-sm flex items-center gap-3">
+      <i class="fa-solid fa-clock-rotate-left" style="font-size:24px;color:var(--primary)"></i>
+      <span class="font-semi text-sm">Historial</span>
+    </a>
+    <a href="{{ url_for('perfil') }}" class="card card-sm flex items-center gap-3">
+      <i class="fa-solid fa-user" style="font-size:24px;color:var(--primary)"></i>
+      <span class="font-semi text-sm">Mi Perfil</span>
+    </a>
+  </div>
+
+  <!-- Alertas Recientes -->
+  {% if alertas_count > 0 %}
+  <div style="background:var(--warning-light);border-left:4px solid var(--warning);border-radius:12px;padding:16px;display:flex;align-items:center;gap:12px;margin-bottom:24px">
+    <i class="fa-solid fa-triangle-exclamation" style="color:var(--warning);font-size:20px"></i>
+    <div style="flex:1">
+      <div style="font-weight:600;font-size:14px">{{ alertas_count }} producto(s) en riesgo de quiebre</div>
+      <div class="text-muted text-sm mt-2">Requieren atención inmediata</div>
+    </div>
+    <a href="{{ url_for('alertas') }}" class="text-green font-semi text-sm">Ver Alertas ›</a>
+  </div>
+  {% endif %}
+
+  {% if alertas_recientes %}
+  <div style="font-size:15px;font-weight:600;margin-bottom:12px">Alertas Más Urgentes</div>
+  {% for a in alertas_recientes %}
+  <div class="card alert-card {{ a.nivel }} mb-3">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="font-semi">{{ a.producto }}</div>
+        <div class="text-muted text-xs">SKU: {{ a.sku }}</div>
+      </div>
+      <span class="badge {% if a.nivel == 'critico' %}badge-red{% elif a.nivel == 'urgente' %}badge-amber{% else %}badge-green{% endif %}">
+        {{ a.horas_restantes | round(0) | int }}h
+      </span>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function() {
+    const el = document.getElementById('fecha-hora');
+    function tick() {
+      const now = new Date();
+      el.textContent = now.toLocaleDateString('es-PE', {weekday:'long',year:'numeric',month:'long',day:'numeric'})
+        + ' · ' + now.toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'});
+    }
+    tick(); setInterval(tick, 60000);
+  })();
+</script>
+{% endblock %}

@@ -1,115 +1,466 @@
-from flask import Flask, render_template, request, jsonify
+"""
+app.py — Tottus SGI · Backend Unificado
+Reemplaza: app.py + main.py + alertasAD.py
+"""
+import os
+from functools import wraps
+from datetime import datetime
+from flask import (Flask, render_template, request, jsonify,
+                   session, redirect, url_for, flash)
 import mysql.connector
 from mysql.connector import Error
-from datetime import datetime
+from werkzeug.security import check_password_hash
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev_secret_change_me')
 
-
+# ── Configuración BD ─────────────────────────────────────────
 DB_CONFIG = {
-    'host': 'localhost',
-    'database': 'tottus_inventory',
-    'user': 'root',
-    'password': ''  # En XAMPP suele ser vacío
+    'host':     os.getenv('DB_HOST', 'localhost'),
+    'database': os.getenv('DB_NAME', 'tottus_sgi'),
+    'user':     os.getenv('DB_USER', 'root'),
+    'password': os.getenv('DB_PASSWORD', ''),
 }
 
-def get_connection():
+def get_db():
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
-        return conn
+        return mysql.connector.connect(**DB_CONFIG)
     except Error as e:
-        print(f"Error de conexión: {e}")
+        print(f"[ERROR BD] {e}")
         return None
 
+# ── Decoradores ──────────────────────────────────────────────
+def login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if 'usuario_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return wrapper
 
+def requiere_rol(*roles):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if 'usuario_id' not in session:
+                return jsonify({'error': 'No autenticado'}), 401
+            if session.get('rol') not in roles:
+                return jsonify({'error': 'Sin permisos para esta acción'}), 403
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
+# ── Helper: Contar alertas activas (para el badge del header) ─
+def contar_alertas():
+    conn = get_db()
+    if not conn:
+        return 0
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM alertas_quiebre WHERE activo=1 AND nivel IN ('critico','urgente')")
+        return cur.fetchone()[0]
+    finally:
+        conn.close()
+
+# ── Helper: Registrar historial ──────────────────────────────
+def registrar_historial(conn, producto_id, accion,
+                        campo=None, anterior=None, nuevo=None, motivo=None):
+    if 'usuario_id' not in session:
+        return
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO historial_ajustes
+            (producto_id, usuario_id, empleado_nombre, accion,
+             campo_modificado, valor_anterior, valor_nuevo, motivo)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (producto_id, session['usuario_id'], session.get('nombre', ''),
+          accion, campo, str(anterior) if anterior is not None else None,
+          str(nuevo) if nuevo is not None else None, motivo))
+
+# ════════════════════════════════════════════════════════════
+# RUTAS PÚBLICAS
+# ════════════════════════════════════════════════════════════
 @app.route('/')
 def index():
-    return render_template('segmentacion.html')
+    if 'usuario_id' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if 'usuario_id' in session:
+        return redirect(url_for('dashboard'))
+
+    error = None
+    if request.method == 'POST':
+        codigo = request.form.get('codigo_empleado', '').strip()
+        clave  = request.form.get('password', '')
+
+        conn = get_db()
+        if conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute(
+                "SELECT * FROM usuarios WHERE codigo_empleado=%s AND activo=1",
+                (codigo,)
+            )
+            usuario = cur.fetchone()
+            conn.close()
+
+            if usuario and check_password_hash(usuario['password_hash'], clave):
+                session.clear()
+                session['usuario_id'] = usuario['id']
+                session['nombre']     = usuario['nombre']
+                session['rol']        = usuario['rol']
+                session['sede']       = usuario['sede']
+                session['codigo']     = usuario['codigo_empleado']
+
+                # Actualizar último login
+                c2 = get_db()
+                if c2:
+                    cur2 = c2.cursor()
+                    cur2.execute("UPDATE usuarios SET ultimo_login=NOW() WHERE id=%s",
+                                 (usuario['id'],))
+                    c2.commit()
+                    c2.close()
+
+                return redirect(url_for('dashboard'))
+            else:
+                error = 'Código o contraseña incorrectos.'
+        else:
+            error = 'Error de conexión con la base de datos.'
+
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+# ════════════════════════════════════════════════════════════
+# RUTAS AUTENTICADAS — VISTAS
+# ════════════════════════════════════════════════════════════
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    conn = get_db()
+    stats = {'alertas_criticas': 0, 'productos_ok': 0, 'total_productos': 0}
+    alertas_recientes = []
+    if conn:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT COUNT(*) AS n FROM alertas_quiebre WHERE activo=1 AND nivel='critico'")
+        stats['alertas_criticas'] = cur.fetchone()['n']
+        cur.execute("SELECT COUNT(*) AS n FROM productos WHERE activo=1")
+        stats['total_productos'] = cur.fetchone()['n']
+        cur.execute("""
+            SELECT sku, producto, nivel, horas_restantes
+            FROM alertas_quiebre WHERE activo=1 ORDER BY horas_restantes ASC LIMIT 3
+        """)
+        alertas_recientes = cur.fetchall()
+        conn.close()
+
+    return render_template('dashboard.html',
+                           active_page='dashboard',
+                           alertas_count=contar_alertas(),
+                           stats=stats,
+                           alertas_recientes=alertas_recientes)
+
+@app.route('/alertas')
+@login_required
+def alertas():
+    conn = get_db()
+    alertas_data = []
+    totales = {'critico': 0, 'urgente': 0, 'ok': 0}
+    if conn:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT * FROM v_alertas_activas")
+        alertas_data = cur.fetchall()
+        cur.execute("""
+            SELECT nivel, COUNT(*) AS n FROM alertas_quiebre
+            WHERE activo=1 GROUP BY nivel
+        """)
+        for row in cur.fetchall():
+            totales[row['nivel']] = row['n']
+        conn.close()
+
+    return render_template('alertas.html',
+                           active_page='alertas',
+                           alertas_count=contar_alertas(),
+                           alertas=alertas_data,
+                           totales=totales)
+
+@app.route('/segmentacion')
+@login_required
+def segmentacion():
+    return render_template('segmentacion.html',
+                           active_page='productos',
+                           alertas_count=contar_alertas())
+
+@app.route('/historial')
+@login_required
+def historial():
+    conn = get_db()
+    registros = []
+    if conn:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT * FROM v_historial_completo LIMIT 100")
+        registros = cur.fetchall()
+        conn.close()
+
+    return render_template('historial.html',
+                           active_page='dashboard',
+                           alertas_count=contar_alertas(),
+                           registros=registros)
+
+@app.route('/perfil')
+@login_required
+def perfil():
+    conn = get_db()
+    usuario = None
+    if conn:
+        cur = conn.cursor(dictionary=True)
+        cur.execute("SELECT * FROM usuarios WHERE id=%s", (session['usuario_id'],))
+        usuario = cur.fetchone()
+        conn.close()
+
+    return render_template('perfil.html',
+                           active_page='perfil',
+                           alertas_count=contar_alertas(),
+                           usuario=usuario)
+
+# ════════════════════════════════════════════════════════════
+# API — PRODUCTOS
+# ════════════════════════════════════════════════════════════
 @app.route('/api/productos', methods=['GET'])
-def get_productos():
-    conn = get_connection()
-    if not conn: return jsonify({'success': False, 'message': 'Error de BD'}), 500
-    
-    cursor = conn.cursor(dictionary=True)
-    q = request.args.get('q', '')
-    
-    query = "SELECT * FROM productos"
+@login_required
+def api_get_productos():
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False, 'message': 'Error de BD'}), 500
+    cur = conn.cursor(dictionary=True)
+    q = request.args.get('q', '').strip()
     if q:
-        query += " WHERE nombre LIKE %s OR sku LIKE %s"
-        cursor.execute(query, (f"%{q}%", f"%{q}%"))
+        cur.execute("""
+            SELECT * FROM productos WHERE activo=1
+            AND (nombre LIKE %s OR sku LIKE %s OR categoria LIKE %s)
+        """, (f'%{q}%', f'%{q}%', f'%{q}%'))
     else:
-        cursor.execute(query)
-        
-    productos = cursor.fetchall()
-    cursor.close()
+        cur.execute("SELECT * FROM productos WHERE activo=1 ORDER BY nombre")
+    data = cur.fetchall()
     conn.close()
-    return jsonify({'success': True, 'data': productos})
+    return jsonify({'success': True, 'data': data})
 
+# ════════════════════════════════════════════════════════════
+# API — SEGMENTACIONES  (CRUD completo)
+# ════════════════════════════════════════════════════════════
 @app.route('/api/segmentaciones', methods=['GET'])
-def get_segmentaciones():
-    conn = get_connection()
-    if not conn: return jsonify({'success': False}), 500
-    
-    cursor = conn.cursor(dictionary=True)
-    # Hacemos un JOIN para traer el nombre y sku del producto
-    query = """
-        SELECT s.*, p.nombre, p.sku 
+@login_required
+def api_get_segmentaciones():
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False}), 500
+    cur = conn.cursor(dictionary=True)
+    cur.execute("""
+        SELECT s.*, p.nombre, p.sku, p.stock_total
         FROM segmentacion_inventario s
         JOIN productos p ON s.producto_id = p.id
         ORDER BY s.fecha_creacion DESC
-    """
-    cursor.execute(query)
-    segmentaciones = cursor.fetchall()
-    cursor.close()
+    """)
+    data = cur.fetchall()
     conn.close()
-    return jsonify({'success': True, 'data': segmentaciones})
+    return jsonify({'success': True, 'data': data})
 
 @app.route('/api/segmentaciones', methods=['POST'])
-def crear_segmentacion():
-    data = request.get_json()
-    conn = get_connection()
-    if not conn: return jsonify({'success': False, 'message': 'Error BD'}), 500
-    
+@requiere_rol('supervisor', 'gerente')
+def api_crear_segmentacion():
+    data = request.get_json() or {}
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False, 'message': 'Error BD'}), 500
+
+    producto_id      = data.get('producto_id')
+    stock_final      = int(data.get('stock_final', 0))
+    stock_revendedor = int(data.get('stock_revendedor', 0))
+    motivo           = data.get('motivo', '')
+
+    # Validación: no superar stock total
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT stock_total FROM productos WHERE id=%s", (producto_id,))
+    prod = cur.fetchone()
+    if not prod:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Producto no encontrado'}), 404
+    if stock_final + stock_revendedor > prod['stock_total']:
+        conn.close()
+        return jsonify({'success': False,
+                        'message': f"Total asignado ({stock_final + stock_revendedor}) "
+                                   f"supera el stock disponible ({prod['stock_total']})"}), 400
     try:
-        cursor = conn.cursor()
-        # Nota: Los nombres aquí deben ser los mismos de tu tabla en phpMyAdmin
-        query = """
-            INSERT INTO segmentacion_inventario 
-            (producto_id, stock_cliente_final, stock_revendedor, limite_compra_final, limite_compra_revendedor, motivo)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """
-        valores = (
-            data['producto_id'], 
-            data['stock_final'], 
-            data['stock_revendedor'],
-            data.get('limite_compra_final', 0), 
-            data.get('limite_compra_revendedor', 0),
-            data.get('motivo', '')
-        )
-        cursor.execute(query, valores)
-        conn.commit() # ¡IMPORTANTE! Sin esto MySQL no guarda los cambios
-        return jsonify({'success': True, 'message': 'Guardado correctamente'})
+        cur.execute("""
+            INSERT INTO segmentacion_inventario
+                (producto_id, usuario_id, stock_cliente_final, stock_revendedor,
+                 limite_compra_final, limite_compra_revendedor, motivo)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (producto_id, session.get('usuario_id'),
+              stock_final, stock_revendedor,
+              data.get('limite_compra_final', 0),
+              data.get('limite_compra_revendedor', 0), motivo))
+        registrar_historial(conn, producto_id, 'CREATE', motivo=motivo)
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Segmentación creada correctamente'})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        return jsonify({'success': False, 'message': str(e)}), 500
     finally:
-        cursor.close()
+        conn.close()
+
+@app.route('/api/segmentaciones/<int:seg_id>', methods=['PUT'])
+@requiere_rol('supervisor', 'gerente')
+def api_actualizar_segmentacion(seg_id):
+    data = request.get_json() or {}
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False, 'message': 'Error BD'}), 500
+
+    stock_final      = int(data.get('stock_final', 0))
+    stock_revendedor = int(data.get('stock_revendedor', 0))
+    motivo           = data.get('motivo', '')
+
+    cur = conn.cursor(dictionary=True)
+    # Obtener datos anteriores para historial
+    cur.execute("""
+        SELECT s.*, p.stock_total FROM segmentacion_inventario s
+        JOIN productos p ON s.producto_id = p.id WHERE s.id=%s
+    """, (seg_id,))
+    anterior = cur.fetchone()
+    if not anterior:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Registro no encontrado'}), 404
+
+    if stock_final + stock_revendedor > anterior['stock_total']:
+        conn.close()
+        return jsonify({'success': False,
+                        'message': f"Total ({stock_final + stock_revendedor}) supera stock ({anterior['stock_total']})"}), 400
+    try:
+        cur.execute("""
+            UPDATE segmentacion_inventario
+            SET stock_cliente_final=%s, stock_revendedor=%s,
+                limite_compra_final=%s, limite_compra_revendedor=%s,
+                motivo=%s, usuario_id=%s, updated_at=NOW()
+            WHERE id=%s
+        """, (stock_final, stock_revendedor,
+              data.get('limite_compra_final', anterior['limite_compra_final']),
+              data.get('limite_compra_revendedor', anterior['limite_compra_revendedor']),
+              motivo, session.get('usuario_id'), seg_id))
+
+        registrar_historial(conn, anterior['producto_id'], 'UPDATE',
+                            'stock_cliente_final',
+                            anterior['stock_cliente_final'], stock_final, motivo)
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Actualizado correctamente'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/segmentaciones/<int:seg_id>', methods=['DELETE'])
+@requiere_rol('gerente')
+def api_eliminar_segmentacion(seg_id):
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False}), 500
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT producto_id FROM segmentacion_inventario WHERE id=%s", (seg_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'No encontrado'}), 404
+    try:
+        registrar_historial(conn, row['producto_id'], 'DELETE',
+                            motivo=f'Eliminado por {session.get("nombre")}')
+        cur.execute("DELETE FROM segmentacion_inventario WHERE id=%s", (seg_id,))
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Eliminado correctamente'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
         conn.close()
 
 @app.route('/api/segmentaciones/<int:seg_id>/toggle', methods=['PATCH'])
-def toggle_segmentacion(seg_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    # Cambiamos el estado (si es 1 pasa a 0, si es 0 pasa a 1)
-    query = "UPDATE segmentacion_inventario SET activo = NOT activo WHERE id = %s"
-    cursor.execute(query, (seg_id,))
+@requiere_rol('supervisor', 'gerente')
+def api_toggle_segmentacion(seg_id):
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False}), 500
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT producto_id, activo FROM segmentacion_inventario WHERE id=%s", (seg_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'No encontrado'}), 404
+    nuevo_estado = 0 if row['activo'] else 1
+    cur.execute("UPDATE segmentacion_inventario SET activo=%s WHERE id=%s", (nuevo_estado, seg_id))
+    registrar_historial(conn, row['producto_id'], 'TOGGLE',
+                        'activo', row['activo'], nuevo_estado)
     conn.commit()
-    
-    cursor.close()
     conn.close()
-    return jsonify({'success': True, 'message': 'Estado actualizado'})
+    return jsonify({'success': True, 'activo': nuevo_estado})
 
+# ════════════════════════════════════════════════════════════
+# API — ALERTAS
+# ════════════════════════════════════════════════════════════
+@app.route('/api/alertas', methods=['GET'])
+@login_required
+def api_get_alertas():
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False}), 500
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM v_alertas_activas")
+    data = cur.fetchall()
+    conn.close()
+    return jsonify({'success': True, 'data': data})
+
+@app.route('/api/alertas/<int:alerta_id>', methods=['DELETE'])
+@requiere_rol('supervisor', 'gerente')
+def api_eliminar_alerta(alerta_id):
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False}), 500
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT producto_id FROM alertas_quiebre WHERE id=%s", (alerta_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({'success': False, 'message': 'No encontrado'}), 404
+    cur.execute("UPDATE alertas_quiebre SET activo=0 WHERE id=%s", (alerta_id,))
+    registrar_historial(conn, row['producto_id'], 'DELETE',
+                        motivo='Alerta descartada manualmente')
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True, 'message': 'Alerta eliminada'})
+
+# ════════════════════════════════════════════════════════════
+# API — HISTORIAL
+# ════════════════════════════════════════════════════════════
+@app.route('/api/historial', methods=['GET'])
+@login_required
+def api_get_historial():
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False}), 500
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT * FROM v_historial_completo LIMIT 200")
+    data = cur.fetchall()
+    conn.close()
+    # Convertir datetime a string
+    for row in data:
+        if isinstance(row.get('fecha'), datetime):
+            row['fecha'] = row['fecha'].strftime('%d/%m/%Y %H:%M')
+    return jsonify({'success': True, 'data': data})
+
+# ════════════════════════════════════════════════════════════
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(debug=debug, port=5000)
