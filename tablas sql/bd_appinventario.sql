@@ -47,8 +47,9 @@ CREATE TABLE productos (
     nombre            VARCHAR(100)   NOT NULL,
     categoria         VARCHAR(50),
     stock_total       INT            NOT NULL DEFAULT 0,
-    ubicacion_gondola VARCHAR(100),              -- ej. "Góndola 3, estante 2"
+    ubicacion_gondola VARCHAR(100),
     precio_unitario   DECIMAL(10,2),
+    venta_dia         DECIMAL(8,2)   DEFAULT 0,  -- uds vendidas por día (para calcular horas restantes)
     activo            TINYINT(1)     DEFAULT 1,
     created_at        DATETIME       DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;

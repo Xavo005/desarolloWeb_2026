@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block title %}Catálogo de Productos{% endblock %}
+{% block page_title %}Productos{% endblock %}
+
+{% block extra_css %}
+<style>
+  .prod-grid { display: grid; gap: 12px; }
+  .prod-table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 640px; }
+  th { background: var(--primary); color: #fff; padding: 11px 14px; text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap; }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:hover td { background: var(--bg); }
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .sku-badge { font-family: monospace; font-size: 12px; background: var(--bg); padding: 2px 8px; border-radius: 6px; color: var(--text-muted); }
+  .search-bar { display: flex; gap: 10px; margin-bottom: 16px; }
+  .search-bar input { flex: 1; height: 44px; border: 1px solid var(--border); border-radius: 10px; padding: 0 14px; font: 14px var(--font); outline: none; }
+  .search-bar input:focus { border-color: var(--primary); }
+  @media(max-width:767px){ .form-grid-2, .form-grid-3 { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="px-4" style="max-width:1100px;margin:0 auto;padding-top:24px">
+
+  <!-- ── Formulario crear / editar ── -->
+  <div class="card mb-4">
+    <div style="font-size:16px;font-weight:600;margin-bottom:20px;border-left:3px solid var(--primary);padding-left:10px">
+      <i class="fa-solid fa-box-open"></i>
+      <span id="form-title">Nuevo Producto</span>
+    </div>
+    <form id="prod-form" onsubmit="return false">
+      <input type="hidden" id="prod-id">
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label>SKU <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="prod-sku" placeholder="Ej: LAC-001" maxlength="50" required>
+        </div>
+        <div class="form-group">
+          <label>Nombre <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="prod-nombre" placeholder="Ej: Leche Gloria Entera 1L" maxlength="100" required>
+        </div>
+      </div>
+
+      <div class="form-grid-3">
+        <div class="form-group">
+          <label>Categoría</label>
+          <select id="prod-categoria">
+            <option value="">— Seleccionar —</option>
+            <option>Lácteos</option><option>Granos</option><option>Abarrotes</option>
+            <option>Limpieza</option><option>Bebidas</option><option>Snacks</option>
+            <option>Carnes</option><option>Frutas y Verduras</option><option>Panadería</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Stock Total (uds)</label>
+          <input type="number" id="prod-stock" min="0" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Precio Unitario (S/.)</label>
+          <input type="number" id="prod-precio" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+
+      <div class="form-grid-2">
+        <div class="form-group">
+          <label>Velocidad de Venta (uds/día)</label>
+          <input type="number" id="prod-venta" min="0" step="0.1" placeholder="0.0">
+          <span style="font-size:11px;color:var(--text-muted)">Para calcular horas hasta quiebre</span>
+        </div>
+        <div class="form-group">
+          <label>Ubicación en Góndola</label>
+          <input type="text" id="prod-ubicacion" placeholder="Ej: Pasillo A3 - Estante 2" maxlength="100">
+        </div>
+      </div>
+
+      <div id="sku-error" class="hidden" style="color:var(--danger);font-size:13px;margin-bottom:12px">
+        <i class="fa-solid fa-circle-xmark"></i> <span id="sku-error-msg">Ese SKU ya existe.</span>
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button type="button" class="btn-primary" style="flex:1;min-width:140px" onclick="guardarProducto()">
+          <i class="fa-solid fa-floppy-disk"></i> Guardar Producto
+        </button>
+        <button type="button" class="btn-secondary" onclick="limpiarFormProd()" style="padding:12px 20px">
+          <i class="fa-solid fa-xmark"></i> Cancelar
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Buscador + tabla ── -->
+  <div style="font-size:16px;font-weight:600;margin-bottom:12px">Catálogo de Productos</div>
+  <div class="search-bar">
+    <input type="text" id="buscar-prod" placeholder="🔍  Buscar por nombre, SKU o categoría…" oninput="filtrarTabla(this.value)">
+    <button class="btn-secondary" onclick="cargarTablaProductos()" style="white-space:nowrap;padding:0 16px">
+      <i class="fa-solid fa-rotate-right"></i>
+    </button>
+  </div>
+  <div class="card" style="padding:0">
+    <div class="prod-table-wrap">
+      <table id="prod-table">
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Nombre</th>
+            <th>Categoría</th>
+            <th>Stock</th>
+            <th>Precio</th>
+            <th>Venta/día</th>
+            <th>Góndola</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="prod-tbody">
+          <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">
+            <i class="fa-solid fa-spinner fa-spin"></i> Cargando…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/productos.js') }}"></script>
+{% endblock %}

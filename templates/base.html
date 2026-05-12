@@ -15,8 +15,8 @@
 {# ── Navegación: 5 ítems definidos una sola vez ──────────────── #}
 {%- set nav = [
   ('dashboard',  'Inicio',    'fa-house',  url_for('dashboard')),
-  ('productos',  'Productos', 'fa-box',    url_for('segmentacion')),
-  ('escanear',   'Escanear',  'fa-qrcode', '#'),
+  ('productos',  'Productos', 'fa-box',    url_for('productos')),
+  ('escanear',   'Escanear',  'fa-qrcode', url_for('escanear')),
   ('alertas',    'Alertas',   'fa-bell',   url_for('alertas')),
   ('perfil',     'Perfil',    'fa-user',   url_for('perfil')),
 ] -%}

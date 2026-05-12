@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+{% block title %}Escanear Producto{% endblock %}
+{% block page_title %}Escanear{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Viewport del escáner ── */
+  #scanner-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto 24px;
+    border-radius: 20px;
+    overflow: hidden;
+    background: #000;
+    aspect-ratio: 3/4;
+  }
+  #interactive { width: 100%; height: 100%; }
+  #interactive video { width: 100%; height: 100%; object-fit: cover; }
+  #interactive canvas { display: none; }
+
+  /* Overlay de la mira */
+  .scan-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .scan-frame {
+    width: 65%; aspect-ratio: 3/1;
+    border: 3px solid var(--primary);
+    border-radius: 10px;
+    box-shadow: 0 0 0 4000px rgba(0,0,0,.45);
+    position: relative;
+  }
+  .scan-line {
+    position: absolute; left: 0; right: 0; top: 0; height: 2px;
+    background: var(--primary);
+    animation: scanMove 1.8s ease-in-out infinite;
+    box-shadow: 0 0 6px var(--primary);
+  }
+  @keyframes scanMove {
+    0%   { top: 0; }
+    50%  { top: calc(100% - 2px); }
+    100% { top: 0; }
+  }
+  .scan-hint {
+    position: absolute; bottom: 16px; left: 0; right: 0;
+    text-align: center; color: #fff; font-size: 13px;
+    text-shadow: 0 1px 4px rgba(0,0,0,.7);
+  }
+
+  /* Botones de acción cámara */
+  .scan-controls { display: flex; gap: 12px; margin-bottom: 20px; max-width:420px; margin-left:auto; margin-right:auto; }
+
+  /* ── Resultado ── */
+  #result-section { max-width: 420px; margin: 0 auto; }
+  .result-card { border-left: 4px solid var(--primary); }
+  .result-card.no-encontrado { border-left-color: var(--danger); }
+  .product-header { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 16px; }
+  .product-icon {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: var(--primary-light); color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+  .stock-meters { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 14px 0; }
+  .stock-meter { background: var(--bg); border-radius: 12px; padding: 12px; text-align: center; }
+  .meter-val   { font-size: 22px; font-weight: 700; }
+  .meter-lbl   { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Formulario ajuste manual */
+  #ajuste-form { background: var(--bg); border-radius: 14px; padding: 18px; margin-top: 16px; }
+  #ajuste-form h4 { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+
+  /* Estado sin cámara */
+  #no-camera-msg { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+  #no-camera-msg i { font-size: 48px; margin-bottom: 16px; color: var(--border); display: block; }
+
+  /* Búsqueda manual */
+  .manual-search { max-width: 420px; margin: 0 auto 20px; }
+  .manual-search .search-row { display: flex; gap: 10px; }
+  .manual-search input { flex:1; height:48px; border:1px solid var(--border); border-radius:10px; padding:0 14px; font:14px var(--font); outline:none; }
+  .manual-search input:focus { border-color:var(--primary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="px-4" style="padding-top:20px">
+
+  <!-- ── Vista del escáner ── -->
+  <div id="scanner-section">
+    <div id="scanner-wrap">
+      <div id="interactive" class="viewport"></div>
+      <div class="scan-overlay">
+        <div class="scan-frame">
+          <div class="scan-line"></div>
+        </div>
+      </div>
+      <div class="scan-hint">Apunta al código de barras del producto</div>
+    </div>
+
+    <div class="scan-controls">
+      <button class="btn-primary" style="flex:1" id="btn-iniciar" onclick="iniciarEscaner()">
+        <i class="fa-solid fa-camera"></i> Activar Cámara
+      </button>
+      <button class="btn-secondary" id="btn-detener" onclick="detenerEscaner()" style="display:none;flex:1">
+        <i class="fa-solid fa-stop"></i> Detener
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Búsqueda manual por SKU ── -->
+  <div class="manual-search">
+    <div style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:8px">
+      — o ingresa el SKU manualmente —
+    </div>
+    <div class="search-row">
+      <input type="text" id="sku-manual" placeholder="Ej: LAC-001"
+             onkeydown="if(event.key==='Enter') buscarManual()">
+      <button class="btn-primary" onclick="buscarManual()" style="padding:0 20px">
+        <i class="fa-solid fa-magnifying-glass"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Sección de resultado ── -->
+  <div id="result-section" style="display:none">
+    <!-- Resultado encontrado -->
+    <div id="result-encontrado" class="card result-card" style="display:none">
+      <div class="product-header">
+        <div class="product-icon"><i class="fa-solid fa-box"></i></div>
+        <div style="flex:1">
+          <div style="font-size:17px;font-weight:700" id="r-nombre"></div>
+          <span class="sku-text" id="r-sku"></span>
+          <span class="badge badge-gray ms-2" id="r-categoria" style="margin-left:8px"></span>
+        </div>
+      </div>
+
+      <div class="stock-meters">
+        <div class="stock-meter">
+          <div class="meter-val" id="r-stock">—</div>
+          <div class="meter-lbl">Stock total</div>
+        </div>
+        <div class="stock-meter">
+          <div class="meter-val" id="r-venta">—</div>
+          <div class="meter-lbl">Uds/día</div>
+        </div>
+        <div class="stock-meter">
+          <div class="meter-val" id="r-horas">—</div>
+          <div class="meter-lbl">Horas est.</div>
+        </div>
+      </div>
+
+      <div id="r-alerta-banner" class="hidden"
+           style="background:var(--danger-light);color:var(--danger);border-radius:10px;padding:10px 14px;font-size:13px;font-weight:500;margin-bottom:14px">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span id="r-alerta-msg"></span>
+      </div>
+
+      <!-- Formulario de ajuste rápido -->
+      <div id="ajuste-form">
+        <h4><i class="fa-solid fa-pen-to-square"></i> Registrar Conteo Manual</h4>
+        <input type="hidden" id="aj-producto-id">
+        <div class="form-group">
+          <label>Stock contado físicamente (uds)</label>
+          <input type="number" id="aj-contado" min="0" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>Observaciones</label>
+          <textarea id="aj-motivo" placeholder="Ej: Merma detectada, productos vencidos…"></textarea>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn-primary" style="flex:1" onclick="registrarConteo()">
+            <i class="fa-solid fa-floppy-disk"></i> Guardar Conteo
+          </button>
+          <button class="btn-secondary" onclick="resetScanner()" style="padding:12px 16px">
+            <i class="fa-solid fa-rotate-left"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resultado NO encontrado -->
+    <div id="result-no-encontrado" class="card result-card no-encontrado" style="display:none">
+      <div style="text-align:center;padding:8px 0">
+        <i class="fa-solid fa-circle-xmark" style="font-size:40px;color:var(--danger);margin-bottom:12px;display:block"></i>
+        <div style="font-weight:700;font-size:17px;margin-bottom:8px">Producto no registrado</div>
+        <div style="font-size:14px;color:var(--text-muted);margin-bottom:20px">
+          SKU <strong id="r-sku-noencontrado"></strong> no existe en el catálogo.
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <a href="{{ url_for('productos') }}" class="btn-primary">
+            <i class="fa-solid fa-plus"></i> Agregar Producto
+          </a>
+          <button class="btn-secondary" onclick="resetScanner()">
+            <i class="fa-solid fa-rotate-left"></i> Escanear otro
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+<script src="{{ url_for('static', filename='js/escanear.js') }}"></script>
+{% endblock %}
