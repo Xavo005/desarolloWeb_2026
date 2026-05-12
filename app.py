@@ -667,6 +667,125 @@ def api_get_historial():
             row['fecha'] = row['fecha'].strftime('%d/%m/%Y %H:%M')
     return jsonify({'success': True, 'data': data})
 
+
+# ════════════════════════════════════════════════════════════
+# FASE 3 — Cambio de contraseña desde Perfil
+# ════════════════════════════════════════════════════════════
+@app.route('/api/perfil/cambiar-clave', methods=['POST'])
+@login_required
+def api_cambiar_clave():
+    from werkzeug.security import generate_password_hash
+    data         = request.get_json() or {}
+    clave_actual = data.get('clave_actual', '')
+    clave_nueva  = data.get('clave_nueva',  '')
+
+    # Validaciones backend (segunda línea de defensa)
+    if not clave_actual or not clave_nueva:
+        return jsonify({'success': False, 'message': 'Ambas claves son requeridas'}), 400
+    if len(clave_nueva) < 8:
+        return jsonify({'success': False, 'message': 'La nueva clave debe tener al menos 8 caracteres'}), 400
+    if not any(c.isdigit() for c in clave_nueva):
+        return jsonify({'success': False, 'message': 'La nueva clave debe contener al menos un número'}), 400
+    if clave_actual == clave_nueva:
+        return jsonify({'success': False, 'message': 'La nueva clave debe ser diferente a la actual'}), 400
+
+    conn = get_db()
+    if not conn:
+        return jsonify({'success': False, 'message': 'Error de BD'}), 500
+
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT password_hash FROM usuarios WHERE id=%s AND activo=1",
+                (session['usuario_id'],))
+    usuario = cur.fetchone()
+
+    if not usuario:
+        conn.close()
+        return jsonify({'success': False, 'message': 'Usuario no encontrado'}), 404
+
+    # Verificar clave actual
+    if not check_password_hash(usuario['password_hash'], clave_actual):
+        conn.close()
+        return jsonify({'success': False, 'message': 'La contraseña actual es incorrecta'}), 403
+
+    # Guardar nuevo hash
+    nuevo_hash = generate_password_hash(clave_nueva)
+    try:
+        cur.execute("UPDATE usuarios SET password_hash=%s WHERE id=%s",
+                    (nuevo_hash, session['usuario_id']))
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Contraseña actualizada correctamente'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ════════════════════════════════════════════════════════════
+# FASE 4 — Exportación CSV del historial
+# ════════════════════════════════════════════════════════════
+@app.route('/historial/exportar', methods=['GET'])
+@login_required
+def exportar_historial_csv():
+    import csv
+    import io
+    from flask import Response
+
+    conn = get_db()
+    if not conn:
+        return "Error de base de datos", 500
+
+    cur = conn.cursor(dictionary=True)
+    # Soporte para filtrar por acción si se pasa ?accion=UPDATE
+    accion = request.args.get('accion', '').strip().upper()
+    if accion:
+        cur.execute(
+            "SELECT * FROM v_historial_completo WHERE accion=%s ORDER BY fecha DESC LIMIT 1000",
+            (accion,)
+        )
+    else:
+        cur.execute("SELECT * FROM v_historial_completo ORDER BY fecha DESC LIMIT 1000")
+
+    registros = cur.fetchall()
+    conn.close()
+
+    # Construir CSV en memoria
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+
+    # Cabecera
+    writer.writerow([
+        'Fecha', 'Producto', 'SKU', 'Empleado', 'Rol Empleado',
+        'Accion', 'Campo Modificado', 'Valor Anterior', 'Valor Nuevo', 'Motivo'
+    ])
+
+    for r in registros:
+        fecha = r['fecha'].strftime('%d/%m/%Y %H:%M') if isinstance(r['fecha'], datetime) else str(r['fecha'])
+        writer.writerow([
+            fecha,
+            r.get('producto_nombre', ''),
+            r.get('sku', ''),
+            r.get('empleado_nombre', ''),
+            r.get('empleado_rol', ''),
+            r.get('accion', ''),
+            r.get('campo_modificado', ''),
+            r.get('valor_anterior', ''),
+            r.get('valor_nuevo', ''),
+            r.get('motivo', ''),
+        ])
+
+    # Nombre de archivo con timestamp
+    nombre_archivo = f"historial_tottus_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv; charset=utf-8',
+        headers={
+            'Content-Disposition': f'attachment; filename="{nombre_archivo}"',
+            'Content-Type': 'text/csv; charset=utf-8',
+        }
+    )
+
+
 # ════════════════════════════════════════════════════════════
 if __name__ == '__main__':
     debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
