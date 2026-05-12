@@ -1,25 +1,35 @@
 # 🛒 Tottus SGI — Sistema Gerencial de Inventario
-**Sprint 1** · Flask · MySQL · XAMPP · Mobile-First
+**Sprint 1 & 2** · Flask · MySQL · XAMPP · Mobile-First
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
 ![Flask](https://img.shields.io/badge/Flask-3.0-black?logo=flask)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-orange?logo=mysql)
+![Sprint](https://img.shields.io/badge/Sprint-2%20completo-00A34D)
 ![License](https://img.shields.io/badge/License-Académico-green)
 
-Sistema web de gestión de inventario diseñado para tiendas Tottus. Permite a supervisores y operarios controlar alertas de quiebre, segmentar stock entre clientes finales y revendedores, y mantener un historial de auditoría completo con trazabilidad por usuario.
+Sistema web de gestión de inventario para tiendas Tottus. Permite controlar alertas de quiebre, segmentar stock, escanear productos en góndola y mantener auditoría completa con trazabilidad por usuario.
 
 ---
 
-## 📋 Funcionalidades del Sprint 1
+## 📋 Funcionalidades por Sprint
 
+### ✅ Sprint 1 — Base del sistema
 | Módulo | Descripción |
 |---|---|
-| 🔐 **Login** | Autenticación con código de empleado + contraseña hasheada (werkzeug) |
+| 🔐 **Login** | Autenticación con código de empleado + contraseña hasheada |
 | 📊 **Dashboard** | Métricas en tiempo real: quiebres, alertas urgentes, accesos rápidos |
-| 🔔 **Alertas** | Panel de quiebres con nivel automático (crítico/urgente/advertencia) + CRUD |
-| 📦 **Segmentación** | CRUD completo de reglas de distribución de stock CF vs. Revendedor |
-| 📋 **Historial** | Auditoría de ajustes: quién · qué · cuándo · delta de cambio |
-| 👤 **Perfil** | Datos del empleado, sede asignada, configuración y cierre de sesión |
+| 🔔 **Alertas** | Panel de quiebres con nivel automático + CRUD completo |
+| 📦 **Segmentación** | CRUD de reglas de distribución de stock CF vs. Revendedor |
+| 📋 **Historial** | Auditoría: quién · qué · cuándo · delta de cambio |
+| 👤 **Perfil** | Datos del empleado, sede asignada, configuración |
+
+### ✅ Sprint 2 — Catálogo, Escáner y Seguridad
+| Módulo | Descripción |
+|---|---|
+| 🗂️ **Catálogo de Productos** | CRUD completo con validación de SKU único y control por roles |
+| 📷 **Escáner QR/Barcode** | Lectura EAN-13 desde cámara del celular (QuaggaJS, sin app) |
+| 🔑 **Cambio de Contraseña** | Formulario seguro con indicador de fortaleza en tiempo real |
+| 📄 **Exportación CSV** | Descarga del historial con nombre con timestamp |
 
 ---
 
@@ -27,94 +37,78 @@ Sistema web de gestión de inventario diseñado para tiendas Tottus. Permite a s
 
 ```
 desarolloWeb_2026/
-├── app.py                  # Backend Flask unificado (rutas + API + sesiones)
-├── crear_admin.py          # Script único: crea el usuario admin con hash seguro
-├── requirements.txt        # Dependencias Python
-├── .env                    # Variables de entorno (NO subir al repositorio)
+├── app.py                    # Backend Flask unificado (791 líneas)
+├── crear_admin.py            # Crea usuario admin con hash seguro
+├── requirements.txt
+├── .env                      # Variables de entorno (NO al repositorio)
 │
 ├── static/
-│   ├── CSS/
-│   │   ├── style.css       # Design System completo (tokens + componentes)
-│   │   └── estilos.css     # Estilos legacy (alertas)
-│   └── JS/
-│       ├── main.js         # Toast + Modal reutilizables (todas las páginas)
-│       └── segmentacion.js # Lógica CRUD de segmentación
+│   ├── css/
+│   │   └── style.css         # Design System completo
+│   └── js/
+│       ├── main.js           # Toast + Modal (todas las páginas)
+│       ├── productos.js      # CRUD catálogo [Sprint 2]
+│       ├── escanear.js       # QuaggaJS + flujo escáner [Sprint 2]
+│       └── segmentacion.js
 │
 ├── templates/
-│   ├── base.html           # Master Template: Sidebar (PC) + TabBar (Móvil)
-│   ├── login.html          # Pública · Split-screen PC / Card Móvil
-│   ├── dashboard.html      # Privada · Métricas + accesos rápidos
-│   ├── alertas.html        # Privada · AlertCards + botones CRUD
-│   ├── segmentacion.html   # Privada · Formulario ajuste + tabla CRUD
-│   ├── historial.html      # Privada · Registro de auditoría con filtros
-│   └── perfil.html         # Privada · Datos de usuario + configuración
+│   ├── base.html             # Master Template: Sidebar (PC) + TabBar (Móvil)
+│   ├── login.html
+│   ├── dashboard.html
+│   ├── alertas.html
+│   ├── productos.html        # [Sprint 2]
+│   ├── escanear.html         # [Sprint 2]
+│   ├── segmentacion.html
+│   ├── historial.html        # + exportar CSV [Sprint 2]
+│   └── perfil.html           # + cambio de clave [Sprint 2]
 │
 ├── tablas sql/
-│   └── bd_appinventario.sql  # Schema completo: 6 tablas + 2 vistas + datos
+│   └── bd_appinventario.sql  # 6 tablas + 2 vistas
 │
 └── docs/
-    └── paginas.md          # Documentación detallada de cada página
+    └── paginas.md            # Documentación técnica por página
 ```
 
 ---
 
 ## 🗄️ Modelo de Base de Datos
 
-```
-usuarios ──────────┐
-                   ├─── historial_ajustes
-productos ─────────┤
-    │              ├─── conteos_manuales
-    ├── segmentacion_inventario
-    └── alertas_quiebre
-
-VISTAS:
-  v_alertas_activas    → alertas_quiebre JOIN productos
-  v_historial_completo → historial_ajustes JOIN productos JOIN usuarios
-```
-
 | Tabla | Propósito |
 |---|---|
 | `usuarios` | Empleados con roles: operario / supervisor / gerente |
-| `productos` | Catálogo con SKU, stock, categoría y ubicación en góndola |
+| `productos` | Catálogo con SKU, stock, precio y velocidad de venta |
 | `segmentacion_inventario` | Reglas CF vs. Revendedor por producto |
-| `alertas_quiebre` | Alertas con nivel calculado automáticamente (campo GENERATED) |
-| `historial_ajustes` | Auditoría completa con usuario_id y delta de cambio |
-| `conteos_manuales` | Registros de conteo físico vs. sistema |
+| `alertas_quiebre` | Alertas con nivel calculado por columna GENERATED |
+| `historial_ajustes` | Auditoría completa con delta de cambio |
+| `conteos_manuales` | Conteo físico vs. sistema (desde escáner) |
 
 ---
 
-## 🚀 Instalación y puesta en marcha
-
-### Pre-requisitos
-- Python 3.11+
-- XAMPP (Apache + MySQL activos)
-- Git
-
-### Pasos
+## 🚀 Instalación
 
 ```bash
-# 1. Clonar el repositorio
-git clone <url-del-repo>
-cd desarolloWeb_2026
+# 1. Clonar
+git clone <url-del-repo> && cd desarolloWeb_2026
 
-# 2. Instalar dependencias
+# 2. Dependencias
 pip install -r requirements.txt
 
-# 3. Importar la base de datos
-# → Abrir http://localhost/phpmyadmin
-# → Importar: tablas sql/bd_appinventario.sql
+# 3. Importar BD en phpMyAdmin
+#    → tablas sql/bd_appinventario.sql
 
-# 4. Crear el usuario administrador
+# 4. Migración Sprint 2 (si BD ya existe del Sprint 1)
+#    → phpMyAdmin → SQL:
+ALTER TABLE productos ADD COLUMN venta_dia DECIMAL(8,2) DEFAULT 0;
+
+# 5. Crear admin
 python crear_admin.py
-# ✅ Código: ADMIN-001  |  Clave: tottus2026
+# Código: ADMIN-001 | Clave: tottus2026
 
-# 5. Ejecutar la aplicación
-python app.py
-# → Abrir: http://localhost:5000
+# 6. Ejecutar
+python app.py  # → http://localhost:5000
 ```
 
-### Variables de entorno (`.env`)
+### `.env`
 ```env
 FLASK_SECRET_KEY=tu_clave_secreta_aqui
 DB_HOST=localhost
@@ -126,38 +120,47 @@ FLASK_DEBUG=True
 
 ---
 
-## 🔑 Credenciales de prueba
-
-| Código | Contraseña | Rol |
-|---|---|---|
-| `ADMIN-001` | `tottus2026` | Gerente (acceso total) |
-| `SUP-2024-001` | *(crear con script)* | Supervisor |
-| `OPE-2024-001` | *(crear con script)* | Operario |
-
----
-
-## 🔐 Sistema de Roles y Permisos
+## 🔐 Roles y Permisos
 
 | Acción | Operario | Supervisor | Gerente |
 |---|:---:|:---:|:---:|
 | Ver dashboard y alertas | ✅ | ✅ | ✅ |
-| Crear segmentación | ❌ | ✅ | ✅ |
-| Editar segmentación | ❌ | ✅ | ✅ |
+| Crear / Editar productos | ❌ | ✅ | ✅ |
+| **Eliminar productos** | ❌ | ❌ | ✅ |
+| Crear / Editar segmentación | ❌ | ✅ | ✅ |
 | **Eliminar segmentación** | ❌ | ❌ | ✅ |
-| Ver historial | ✅ | ✅ | ✅ |
+| Escanear y registrar conteo | ✅ | ✅ | ✅ |
+| Ver historial y exportar CSV | ✅ | ✅ | ✅ |
+| Cambiar su propia contraseña | ✅ | ✅ | ✅ |
 
 ---
 
-## 🧭 Navegación del Sistema
+## 🔌 API Endpoints
 
-```
-[Login] ──→ [Dashboard]
-                ├──→ [Alertas]     → modal confirmar → [Eliminar alerta]
-                │        └──→ [Segmentación]  (Editar)
-                ├──→ [Segmentación] (CRUD completo)
-                ├──→ [Historial]   (filtros + búsqueda)
-                └──→ [Perfil]      → [Logout]
-```
+### Productos
+| Método | Ruta | Rol |
+|---|---|---|
+| GET | `/api/productos` | Todos |
+| POST | `/api/productos` | Supervisor+ |
+| PUT | `/api/productos/<id>` | Supervisor+ |
+| DELETE | `/api/productos/<id>` | Gerente |
+| GET | `/api/productos/buscar-sku/<sku>` | Todos |
+
+### Segmentaciones
+| Método | Ruta | Rol |
+|---|---|---|
+| GET/POST | `/api/segmentaciones` | Todos / Supervisor+ |
+| PUT/DELETE | `/api/segmentaciones/<id>` | Supervisor+ / Gerente |
+| PATCH | `/api/segmentaciones/<id>/toggle` | Supervisor+ |
+
+### Alertas / Historial / Conteos / Perfil
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET/DELETE | `/api/alertas` | Listar / Descartar alerta |
+| GET | `/api/historial` | JSON últimos 200 |
+| GET | `/historial/exportar` | Descarga CSV (`?accion=` filtro) |
+| POST | `/api/conteos` | Conteo manual desde escáner |
+| POST | `/api/perfil/cambiar-clave` | Cambiar contraseña |
 
 ---
 
@@ -168,7 +171,7 @@ FLASK_DEBUG=True
 | `--primary` | `#00A34D` | Botones, header, nav activo |
 | `--danger` | `#D32F2F` | Eliminar, alertas críticas |
 | `--warning` | `#FFB300` | Editar, alertas urgentes |
-| `--bg` | `#F4F7F5` | Fondo de todas las páginas |
+| `--bg` | `#F4F7F5` | Fondo general |
 | `--font` | `Inter` | Tipografía global |
 | `--radius-card` | `16px` | Todas las cards |
 
@@ -178,23 +181,36 @@ FLASK_DEBUG=True
 
 | Breakpoint | Layout |
 |---|---|
-| < 768px (Móvil) | Header fijo + TabBar inferior de 5 ítems |
-| ≥ 768px (PC) | Sidebar lateral de 240px + contenido a la derecha |
+| < 768px | Header fijo + TabBar inferior de 5 ítems |
+| ≥ 768px | Sidebar lateral 240px + contenido a la derecha |
 
 ---
 
-## 📌 Pendientes para Sprint 2
+## ✅ Sprint 2 — Completado
 
-- [ ] Cambio de contraseña desde Perfil
-- [ ] Exportación de historial en PDF/Excel
-- [ ] Módulo de Escáner QR/Barcode
-- [ ] Predicción de quiebre por velocidad de venta
-- [ ] Operaciones masivas (batch) en alertas
-- [ ] Recuperación de contraseña por email
+- [x] CRUD de Productos desde la web con roles
+- [x] Escáner QR/Barcode con QuaggaJS (EAN-13, sin app)
+- [x] Registro de conteos manuales desde el escáner
+- [x] Cambio de contraseña con indicador de fortaleza
+- [x] Exportación de historial en CSV con timestamp
+
+---
+
+## 📌 Pendientes para Sprint 3
+
+- [ ] Gestión de Usuarios (CRUD de empleados, solo gerente)
+- [ ] Recuperación de contraseña por email (token temporal)
+- [ ] Exportación de historial en PDF
+- [ ] Predicción dinámica de quiebre (basada en historial real)
+- [ ] Paginación del historial en backend
+- [ ] Operaciones masivas en alertas (resolver varias a la vez)
+- [ ] Dashboard con gráficas (Chart.js: stock por categoría, tendencias)
+- [ ] Ocultar botones en UI según rol del usuario
+- [ ] Tests automatizados (pytest para endpoints críticos)
 
 ---
 
 ## 👥 Equipo
 
-Proyecto académico USAT · Desarrollo Web 2026  
+Proyecto académico USAT · Desarrollo Web 2026
 Grupo: GRUPAL_DAWE

@@ -1,17 +1,22 @@
 # 📄 Documentación de Páginas — Tottus SGI
 
-Sistema Gerencial de Inventario · Sprint 1 · Flask + MySQL/XAMPP
+Sistema Gerencial de Inventario · Sprint 1 & 2 · Flask + MySQL/XAMPP
 
 ---
 
 ## Índice
+### Sprint 1
 1. [Login](#1-login)
 2. [Dashboard](#2-dashboard)
 3. [Alertas Operativas](#3-alertas-operativas)
 4. [Segmentación / Productos](#4-segmentación--productos)
 5. [Historial de Ajustes](#5-historial-de-ajustes)
 6. [Perfil de Usuario](#6-perfil-de-usuario)
-7. [Componentes Globales](#7-componentes-globales-base)
+7. [Componentes Globales (base)](#7-componentes-globales-base)
+
+### Sprint 2
+8. [Catálogo de Productos](#8-catálogo-de-productos-sprint-2)
+9. [Escáner QR/Barcode](#9-escáner-qrbarcode-sprint-2)
 
 ---
 
@@ -275,4 +280,95 @@ Overlay oscuro + card centrada con botones Cancelar / Sí, eliminar.
 
 ---
 
-*Documentación generada para Sprint 1 · Mayo 2026*
+## 8. Catálogo de Productos `[Sprint 2]`
+**Ruta:** `/productos`  
+**Archivo:** `templates/productos.html`  
+**JS:** `static/js/productos.js`  
+**Acceso:** Requiere login  
+**TabBar activo:** 📦 Productos
+
+### Funcionalidad
+Gestión completa del catálogo de productos. Reemplaza la necesidad de editar registros directamente en phpMyAdmin. Incluye formulario de creación/edición en la parte superior y tabla con búsqueda client-side en la parte inferior.
+
+### Formulario de Producto
+| Campo | Tipo | Validación |
+|---|---|---|
+| SKU | text | Único en BD, requerido, se convierte a mayúsculas automáticamente |
+| Nombre | text | Requerido, máx 100 chars |
+| Categoría | select | Lista fija (Lácteos, Granos, Abarrotes, Limpieza…) |
+| Stock Total | number | ≥ 0 |
+| Precio Unitario | decimal | ≥ 0, en S/. |
+| Velocidad de Venta | decimal | uds/día, alimenta el cálculo de horas_restantes |
+| Ubicación en Góndola | text | Ej: "Pasillo A3 - Estante 2" |
+
+### Tabla de productos
+- Búsqueda client-side sin recargar (filtra por nombre, SKU o categoría)
+- Colores en la columna Stock según riesgo (rojo < 24h, ámbar < 72h)
+- Botón **Editar** (ámbar): rellena el formulario y hace scroll al top
+- Botón **Eliminar** (rojo): muestra modal de confirmación → soft delete (`activo=0`)
+
+### CRUD y Roles
+| Operación | Endpoint | Rol requerido |
+|---|---|---|
+| Listar | `GET /api/productos` | Todos |
+| Crear | `POST /api/productos` | Supervisor+ |
+| Editar | `PUT /api/productos/<id>` | Supervisor+ |
+| Desactivar | `DELETE /api/productos/<id>` | Solo Gerente |
+
+### Auditoria
+Cada creación y cambio de stock queda registrado en `historial_ajustes`.
+
+---
+
+## 9. Escáner QR/Barcode `[Sprint 2]`
+**Ruta:** `/escanear`  
+**Archivo:** `templates/escanear.html`  
+**JS:** `static/js/escanear.js`  
+**Librería:** QuaggaJS v0.12.1 (CDN, sin instalación)  
+**Acceso:** Requiere login  
+**TabBar activo:** ✦ Escanear
+
+### Funcionalidad
+Permite al operario en piso apuntar la cámara del celular al código de barras de un producto en la góndola para identificarlo instantáneamente sin buscar en listas. Es el puente entre el mundo físico y el sistema digital.
+
+### Flujo de uso
+```
+1. Usuario toca "Activar Cámara"
+2. Navegador pide permiso de cámara (estándar HTML5)
+3. QuaggaJS activa la cámara trasera
+4. Overlay verde con línea animada indica el área de lectura
+5. Al detectar EAN-13:
+   a. Vibración táctil (si disponible)
+   b. Cooldown 2s para evitar lecturas dobles
+   c. Llama GET /api/productos/buscar-sku/<sku>
+6. Si ENCONTRADO → card con nombre, stock, precio, horas est.
+7. Si NO ENCONTRADO → mensaje con enlace a /productos (agregar)
+```
+
+### Búsqueda manual
+Campo de texto con botón de búsqueda como alternativa al escáner (para entornos sin cámara o SKUs internos sin código de barras).
+
+### Conteo Manual (parte del resultado)
+Cuando se encuentra el producto, aparece un formulario de conteo:
+| Campo | Descripción |
+|---|---|
+| Stock contado | Cantidad física que el operario cuenta en la góndola |
+| Observaciones | Motivo del conteo (merma, rotura, etc.) |
+
+Al guardar:
+1. Inserta en `conteos_manuales` (estado `aplicado`)
+2. Actualiza `stock_total` en `productos`
+3. Registra en `historial_ajustes` con tipo `CONTEO`
+
+### Alert Banner
+Si el producto tiene una alerta activa en `alertas_quiebre`, muestra un banner rojo con el nivel (crítico/urgente) antes del formulario de conteo.
+
+### API consumida
+```
+GET  /api/productos/buscar-sku/<sku>  → datos + alerta activa del producto
+POST /api/conteos                     → guarda conteo + actualiza stock
+```
+
+---
+
+*Documentación generada · Sprint 1 & 2 · Mayo 2026*
