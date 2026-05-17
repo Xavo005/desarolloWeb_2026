@@ -113,9 +113,9 @@ CREATE TABLE historial_ajustes (
 
 -- Historial de ejemplo
 INSERT INTO historial_ajustes (producto_id, usuario_id, empleado_nombre, accion, campo_modificado, valor_anterior, valor_nuevo, motivo, fecha) VALUES
-(1, 2, 'María Gonzales', 'UPDATE', 'stock_cliente_final', '200', '180', 'Ajuste por merma detectada', NOW() - INTERVAL 2 HOUR),
-(3, 2, 'María Gonzales', 'CREATE', NULL,                  NULL,  NULL,  'Primera segmentación del día', NOW() - INTERVAL 5 HOUR),
-(2, 3, 'Juan Ríos',      'CONTEO', 'stock_total',         '155', '150', 'Conteo físico turno mañana',   NOW() - INTERVAL 7 HOUR);
+(1, 1, 'María Gonzales', 'UPDATE', 'stock_cliente_final', '200', '180', 'Ajuste por merma detectada', NOW() - INTERVAL 2 HOUR),
+(3, 1, 'María Gonzales', 'CREATE', NULL,                  NULL,  NULL,  'Primera segmentación del día', NOW() - INTERVAL 5 HOUR),
+(2, 2, 'Juan Ríos',      'CONTEO', 'stock_total',         '155', '150', 'Conteo físico turno mañana',   NOW() - INTERVAL 7 HOUR);
 
 -- ============================================================
 -- TABLA 5: alertas_quiebre
@@ -174,8 +174,8 @@ CREATE TABLE conteos_manuales (
 ) ENGINE=InnoDB;
 
 INSERT INTO conteos_manuales (producto_id, usuario_id, stock_sistema, stock_contado, motivo, estado) VALUES
-(1, 3, 20, 12, 'Merma detectada en góndola - productos vencidos', 'aplicado'),
-(3, 2, 82, 80, 'Conteo rutina turno mañana', 'aplicado');
+(1, 2, 20, 12, 'Merma detectada en góndola - productos vencidos', 'aplicado'),
+(3, 1, 82, 80, 'Conteo rutina turno mañana', 'aplicado');
 
 -- ============================================================
 -- VISTAS ÚTILES (para reportes rápidos)

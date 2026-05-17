@@ -100,120 +100,176 @@
 
 {% block extra_js %}
 <script>
-let productos = [];
-let stockMap  = {};
+// ==============================================================================
+// UC6 - SEGMENTAR STOCK (Desarrollado por: Gianella)
+// Funciones frontend para la vista de reglas de segmentación y límites de compra.
+// ==============================================================================
 
-// Cargar productos en el select
+let listaProductos = [];
+let mapaStockTotal = {}; // Mapa para obtener el stock rápido por ID
+
+/**
+ * UC6: Carga la lista de productos disponibles en el <select> del formulario.
+ */
 async function cargarProductos() {
-  const r = await fetch('/api/productos');
-  const d = await r.json();
-  if (!d.success) return;
-  productos = d.data;
-  const sel = document.getElementById('producto-select');
-  d.data.forEach(p => {
-    stockMap[p.id] = p.stock_total;
-    sel.innerHTML += `<option value="${p.id}">${p.nombre} — ${p.sku}</option>`;
+  const respuesta = await fetch('/api/productos');
+  const datos = await respuesta.json();
+  
+  if (!datos.success) return;
+  
+  listaProductos = datos.data;
+  const selector = document.getElementById('producto-select');
+  
+  datos.data.forEach(prod => {
+    mapaStockTotal[prod.id] = prod.stock_total;
+    selector.innerHTML += `<option value="${prod.id}">${prod.nombre} — ${prod.sku}</option>`;
   });
 }
 
-function cargarProducto(id) {
-  const total = stockMap[id];
-  if (!total) { document.getElementById('stock-preview').classList.add('hidden'); return; }
-  document.getElementById('stock-disponible').textContent = total;
+/**
+ * UC6: Muestra la vista previa del stock disponible del producto seleccionado.
+ */
+function cargarProducto(idProducto) {
+  const stockTotal = mapaStockTotal[idProducto];
+  if (!stockTotal) { 
+    document.getElementById('stock-preview').classList.add('hidden'); 
+    return; 
+  }
+  
+  document.getElementById('stock-disponible').textContent = stockTotal;
   document.getElementById('stock-preview').classList.remove('hidden');
   actualizarPreview();
 }
 
+/**
+ * UC6: Valida en tiempo real que el stock asignado no supere el disponible.
+ */
 function actualizarPreview() {
-  const id = document.getElementById('producto-select').value;
-  if (!id) return;
-  const total = stockMap[id] || 0;
-  const usado = (+document.getElementById('stock-final').value || 0)
-              + (+document.getElementById('stock-revend').value || 0);
-  const warn = document.getElementById('stock-warn');
-  if (usado > total) { warn.classList.remove('hidden'); }
-  else               { warn.classList.add('hidden'); }
+  const idProducto = document.getElementById('producto-select').value;
+  if (!idProducto) return;
+  
+  const stockTotal = mapaStockTotal[idProducto] || 0;
+  const stockAsignado = (+document.getElementById('stock-final').value || 0)
+                      + (+document.getElementById('stock-revend').value || 0);
+                      
+  const alertaExceso = document.getElementById('stock-warn');
+  
+  if (stockAsignado > stockTotal) { 
+    alertaExceso.classList.remove('hidden'); 
+  } else { 
+    alertaExceso.classList.add('hidden'); 
+  }
 }
 
+/**
+ * UC6: Envía los datos del formulario al backend para crear o actualizar la segmentación.
+ */
 async function guardarSegmentacion() {
-  const id = document.getElementById('seg-id').value;
-  const prodId = document.getElementById('producto-select').value;
-  if (!prodId) { showToast('Selecciona un producto', 'warning'); return; }
-  const payload = {
-    producto_id: +prodId,
+  const idSegmentacion = document.getElementById('seg-id').value;
+  const idProducto = document.getElementById('producto-select').value;
+  
+  if (!idProducto) { 
+    showToast('Selecciona un producto primero.', 'warning'); 
+    return; 
+  }
+  
+  const datosPayload = {
+    producto_id: +idProducto,
     stock_final:             +document.getElementById('stock-final').value  || 0,
     stock_revendedor:        +document.getElementById('stock-revend').value || 0,
     limite_compra_final:     +document.getElementById('lim-final').value    || 0,
     limite_compra_revendedor:+document.getElementById('lim-revend').value   || 0,
     motivo: document.getElementById('motivo').value,
   };
-  if (id) {
-    const ok = await apiPut(`/api/segmentaciones/${id}`, payload);
-    if (ok) { limpiarFormulario(); cargarTabla(); }
+  
+  if (idSegmentacion) {
+    // Si hay un ID, es una actualización (PUT)
+    const exito = await apiPut(`/api/segmentaciones/${idSegmentacion}`, datosPayload, 'Regla actualizada con éxito');
+    if (exito) { limpiarFormulario(); cargarTabla(); }
   } else {
-    const ok = await apiPost('/api/segmentaciones', payload);
-    if (ok) { limpiarFormulario(); cargarTabla(); }
+    // Si no hay ID, es una creación (POST)
+    const exito = await apiPost('/api/segmentaciones', datosPayload, 'Regla de segmentación creada');
+    if (exito) { limpiarFormulario(); cargarTabla(); }
   }
 }
 
+/**
+ * UC6: Restablece el formulario a su estado original vacío.
+ */
 function limpiarFormulario() {
   document.getElementById('seg-id').value = '';
   document.getElementById('producto-select').value = '';
-  ['stock-final','stock-revend','lim-final','lim-revend','motivo'].forEach(id => {
-    document.getElementById(id).value = '';
+  ['stock-final','stock-revend','lim-final','lim-revend','motivo'].forEach(campoId => {
+    document.getElementById(campoId).value = '';
   });
   document.getElementById('stock-preview').classList.add('hidden');
 }
 
-function editarSegmentacion(id, prodId, sf, sr, lf, lr, motivo) {
+/**
+ * UC6: Carga los datos de una segmentación existente en el formulario para editarla.
+ */
+function editarSegmentacion(id, prodId, sf, sr, lf, lr, motivoStr) {
   document.getElementById('seg-id').value = id;
   document.getElementById('producto-select').value = prodId;
   document.getElementById('stock-final').value  = sf;
   document.getElementById('stock-revend').value = sr;
   document.getElementById('lim-final').value    = lf;
   document.getElementById('lim-revend').value   = lr;
-  document.getElementById('motivo').value       = motivo || '';
+  document.getElementById('motivo').value       = motivoStr || '';
+  
   cargarProducto(prodId);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-async function eliminarSegmentacion(id, nombre) {
-  showModal(`¿Eliminar segmentación de "${nombre}"?`, async () => {
-    const ok = await apiDelete(`/api/segmentaciones/${id}`, 'Segmentación eliminada');
-    if (ok) cargarTabla();
+/**
+ * UC6: Pide confirmación y elimina una regla de segmentación del catálogo.
+ */
+async function eliminarSegmentacion(idSegmentacion, nombreProducto) {
+  showModal(`¿Deseas eliminar la regla de segmentación para "${nombreProducto}"?`, async () => {
+    const exito = await apiDelete(`/api/segmentaciones/${idSegmentacion}`, 'Segmentación eliminada correctamente');
+    if (exito) cargarTabla();
   });
 }
 
-async function toggleSegmentacion(id, btn) {
-  const r = await fetch(`/api/segmentaciones/${id}/toggle`, { method: 'PATCH' });
-  const d = await r.json();
-  if (d.success) {
-    btn.textContent = d.activo ? 'Desactivar' : 'Activar';
-    showToast(d.activo ? 'Activado' : 'Desactivado', 'success');
+/**
+ * UC6: Activa o desactiva rápidamente una regla de segmentación.
+ */
+async function toggleSegmentacion(idSegmentacion, botonElement) {
+  const respuesta = await fetch(`/api/segmentaciones/${idSegmentacion}/toggle`, { method: 'PATCH' });
+  const datos = await respuesta.json();
+  
+  if (datos.success) {
+    botonElement.textContent = datos.activo ? 'Desactivar' : 'Activar';
+    showToast(datos.activo ? 'Regla Activada' : 'Regla Desactivada', 'success');
     cargarTabla();
   }
 }
 
+/**
+ * UC6: Obtiene del backend la lista de todas las reglas y las renderiza en la tabla.
+ */
 async function cargarTabla() {
-  const r = await fetch('/api/segmentaciones');
-  const d = await r.json();
-  const tbody = document.getElementById('seg-tbody');
-  if (!d.success || !d.data.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">Sin segmentaciones activas</td></tr>';
+  const respuesta = await fetch('/api/segmentaciones');
+  const datos = await respuesta.json();
+  const cuerpoTabla = document.getElementById('seg-tbody');
+  
+  if (!datos.success || !datos.data.length) {
+    cuerpoTabla.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No hay reglas de segmentación activas.</td></tr>';
     return;
   }
-  tbody.innerHTML = d.data.map(s => `
+  
+  cuerpoTabla.innerHTML = datos.data.map(regla => `
     <tr>
-      <td><strong>${s.nombre}</strong><br><span style="font-size:11px;color:var(--text-muted)">${s.sku}</span></td>
-      <td>${s.stock_cliente_final}</td>
-      <td>${s.stock_revendedor}</td>
-      <td style="font-size:12px">CF: ${s.limite_compra_final} | Rev: ${s.limite_compra_revendedor}</td>
-      <td><span class="badge ${s.activo ? 'badge-green' : 'badge-gray'}">${s.activo ? 'Activo' : 'Inactivo'}</span></td>
+      <td><strong>${regla.nombre}</strong><br><span style="font-size:11px;color:var(--text-muted)">${regla.sku}</span></td>
+      <td>${regla.stock_cliente_final}</td>
+      <td>${regla.stock_revendedor}</td>
+      <td style="font-size:12px">Cliente: ${regla.limite_compra_final} | Revend: ${regla.limite_compra_revendedor}</td>
+      <td><span class="badge ${regla.activo ? 'badge-green' : 'badge-gray'}">${regla.activo ? 'Activa' : 'Inactiva'}</span></td>
       <td style="white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn-edit" onclick='editarSegmentacion(${s.id},${s.producto_id},${s.stock_cliente_final},${s.stock_revendedor},${s.limite_compra_final},${s.limite_compra_revendedor},"${(s.motivo||'').replace(/"/g,'')}")'>
+        <button class="btn-edit" onclick='editarSegmentacion(${regla.id}, ${regla.producto_id}, ${regla.stock_cliente_final}, ${regla.stock_revendedor}, ${regla.limite_compra_final}, ${regla.limite_compra_revendedor}, "${(regla.motivo||'').replace(/"/g,'')}")' title="Editar regla">
           <i class="fa-solid fa-pen"></i>
         </button>
-        <button class="btn-delete" onclick="eliminarSegmentacion(${s.id},'${s.nombre}')">
+        <button class="btn-delete" onclick="eliminarSegmentacion(${regla.id}, '${regla.nombre}')" title="Eliminar regla">
           <i class="fa-solid fa-trash"></i>
         </button>
       </td>
@@ -221,13 +277,15 @@ async function cargarTabla() {
   `).join('');
 }
 
+// Inicialización de la vista al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
   cargarProductos();
   cargarTabla();
-  // Soporte para ?alerta_id= desde la página de alertas
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('alerta_id')) {
-    showToast('Selecciona el producto y ajusta el stock', 'warning');
+  
+  // Soporte de enlace directo desde la vista de Alertas (UC4 -> UC6)
+  const parametrosURL = new URLSearchParams(window.location.search);
+  if (parametrosURL.get('alerta_id')) {
+    showToast('Selecciona el producto afectado y ajusta su stock.', 'warning');
   }
 });
 </script>

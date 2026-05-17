@@ -103,24 +103,54 @@
 
 {% block extra_js %}
 <script>
-document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+// ==============================================================================
+// UC4 - ALERTAS DE QUIEBRE (Desarrollado por: Gianella)
+// Lógica frontend para gestionar la vista de alertas críticas de inventario.
+// ==============================================================================
 
-function confirmarEliminar(id, nombre) {
+/**
+ * 1. Muestra la hora de la última actualización automática en la interfaz.
+ */
+document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-PE', {
+  hour: '2-digit', 
+  minute: '2-digit'
+});
+
+/**
+ * UC4: Solicita confirmación al usuario antes de descartar una alerta del sistema.
+ * @param {number} alertaId - ID de la alerta a eliminar
+ * @param {string} nombreProducto - Nombre del producto asociado a la alerta
+ */
+function confirmarEliminar(alertaId, nombreProducto) {
+  // Utilizamos el modal global integrado en la plantilla base
   showModal(
-    `¿Eliminar la alerta de "${nombre}"?\nEsta acción no se puede deshacer.`,
+    `¿Deseas descartar la alerta de "${nombreProducto}"?\nEsta acción no se puede deshacer.`,
     async () => {
-      const ok = await apiDelete(`/api/alertas/${id}`, 'Alerta eliminada correctamente');
-      if (ok) {
-        document.getElementById(`alerta-${id}`)?.remove();
+      // Llamada al backend para eliminar (usando la función auxiliar global)
+      const exito = await apiDelete(`/api/alertas/${alertaId}`, 'Alerta descartada correctamente');
+      
+      // Si la petición fue exitosa, removemos la tarjeta de alerta visualmente
+      if (exito) {
+        const tarjetaAlerta = document.getElementById(`alerta-${alertaId}`);
+        if (tarjetaAlerta) {
+          tarjetaAlerta.remove();
+        }
       }
     }
   );
 }
 
-function abrirEditar(id, nombre) {
-  showToast(`Editando: ${nombre}`, 'warning');
-  // Redirige a segmentación con el id como parámetro
-  window.location.href = `/segmentacion?alerta_id=${id}`;
+/**
+ * UC4: Redirige al usuario a la pantalla de Segmentación para gestionar la alerta.
+ * @param {number} alertaId - ID de la alerta seleccionada
+ * @param {string} nombreProducto - Nombre del producto asociado a la alerta
+ */
+function abrirEditar(alertaId, nombreProducto) {
+  // Notificamos sutilmente que estamos redirigiendo
+  showToast(`Gestionando alerta: ${nombreProducto}`, 'warning');
+  
+  // Redirección a la vista de segmentación con el parámetro en la URL
+  window.location.href = `/segmentacion?alerta_id=${alertaId}`;
 }
 </script>
 {% endblock %}

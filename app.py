@@ -167,35 +167,48 @@ def dashboard():
                            stats=stats,
                            alertas_recientes=alertas_recientes)
 
+# ==============================================================================
+# UC4 - ALERTAS DE QUIEBRE (Gianella)
+# Vista principal para visualizar alertas de stock crítico y urgente.
+# ==============================================================================
 @app.route('/alertas')
 @login_required
 def alertas():
-    conn = get_db()
-    alertas_data = []
-    totales = {'critico': 0, 'urgente': 0, 'ok': 0}
-    if conn:
-        cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT * FROM v_alertas_activas")
-        alertas_data = cur.fetchall()
-        cur.execute("""
+    conexion = get_db()
+    lista_alertas = []
+    totales_por_nivel = {'critico': 0, 'urgente': 0, 'ok': 0}
+    
+    if conexion:
+        cursor = conexion.cursor(dictionary=True)
+        # Obtenemos todas las alertas activas con detalles de producto
+        cursor.execute("SELECT * FROM v_alertas_activas")
+        lista_alertas = cursor.fetchall()
+        
+        # Calculamos los totales (cuántas críticas, urgentes, etc.)
+        cursor.execute("""
             SELECT nivel, COUNT(*) AS n FROM alertas_quiebre
             WHERE activo=1 GROUP BY nivel
         """)
-        for row in cur.fetchall():
-            totales[row['nivel']] = row['n']
-        conn.close()
+        for fila in cursor.fetchall():
+            totales_por_nivel[fila['nivel']] = fila['n']
+        conexion.close()
 
     return render_template('alertas.html',
                            active_page='alertas',
                            alertas_count=contar_alertas(),
-                           alertas=alertas_data,
-                           totales=totales)
+                           alertas=lista_alertas,
+                           totales=totales_por_nivel)
 
+# ==============================================================================
+# UC6 - SEGMENTAR STOCK (Gianella)
+# Vista principal para crear y gestionar reglas de segmentación de inventario.
+# ==============================================================================
 @app.route('/segmentacion')
 @login_required
 def segmentacion():
+    # La lógica frontend pesada está en segmentacion.js (ver /api/segmentaciones)
     return render_template('segmentacion.html',
-                           active_page='productos',
+                           active_page='segmentacion',
                            alertas_count=contar_alertas())
 
 @app.route('/historial')

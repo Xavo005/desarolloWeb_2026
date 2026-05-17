@@ -12,13 +12,23 @@
 </head>
 <body>
 
-{# ── Navegación: 5 ítems definidos una sola vez ──────────────── #}
-{%- set nav = [
-  ('dashboard',  'Inicio',    'fa-house',  url_for('dashboard')),
-  ('productos',  'Productos', 'fa-box',    url_for('productos')),
-  ('escanear',   'Escanear',  'fa-qrcode', url_for('escanear')),
-  ('alertas',    'Alertas',   'fa-bell',   url_for('alertas')),
-  ('perfil',     'Perfil',    'fa-user',   url_for('perfil')),
+{# ── Navegación Lateral (PC) con Dropdown ──────────────── #}
+{%- set nav_sidebar = [
+  {'id': 'dashboard', 'label': 'Inicio', 'icon': 'fa-house', 'url': url_for('dashboard')},
+  {'id': 'inventario', 'label': 'Inventario', 'icon': 'fa-box', 'url': '#', 'sub': [
+      {'id': 'productos', 'label': 'Catálogo', 'url': url_for('productos')},
+      {'id': 'segmentacion', 'label': 'Segmentación', 'url': url_for('segmentacion')}
+  ]},
+  {'id': 'escanear', 'label': 'Escanear', 'icon': 'fa-qrcode', 'url': url_for('escanear')},
+  {'id': 'perfil', 'label': 'Perfil', 'icon': 'fa-user', 'url': url_for('perfil')}
+] -%}
+
+{# ── Navegación Móvil (Plana, 5 ítems máximo) ──────────── #}
+{%- set nav_tabbar = [
+  ('dashboard', 'Inicio', 'fa-house', url_for('dashboard')),
+  ('productos', 'Inventario', 'fa-box', url_for('productos')),
+  ('escanear',  'Escanear', 'fa-qrcode', url_for('escanear')),
+  ('perfil',    'Perfil', 'fa-user', url_for('perfil'))
 ] -%}
 {%- set cur = active_page | default('dashboard') -%}
 
@@ -26,12 +36,12 @@
 <header class="master-header">
   <span class="hdr-brand">TOTTUS</span>
   <span class="hdr-title">{% block page_title %}{% endblock %}</span>
-  <a href="{{ url_for('alertas') }}" class="hdr-bell">
+  <button class="hdr-bell" onclick="toggleNotifDropdown(event)" style="background: none; border: none; cursor: pointer;">
     <i class="fa-solid fa-bell"></i>
     {% if alertas_count and alertas_count > 0 %}
       <span class="alert-badge">{{ alertas_count }}</span>
     {% endif %}
-  </a>
+  </button>
 </header>
 
 <!-- ══════════ SIDEBAR (PC) ══════════ -->
@@ -42,16 +52,34 @@
   </div>
   <hr class="sb-divider">
   <nav class="sb-nav">
-    {% for key, label, icon, href in nav %}
-      <a href="{{ href }}"
-         class="sb-item {% if key == cur %}active{% endif %}"
-         {% if key == 'alertas' and alertas_count %}data-badge="{{ alertas_count }}"{% endif %}>
-        <i class="fa-solid {{ icon }}"></i>
-        <span>{{ label }}</span>
-        {% if key == 'alertas' and alertas_count and alertas_count > 0 %}
-          <span class="sb-badge">{{ alertas_count }}</span>
-        {% endif %}
-      </a>
+    {% for item in nav_sidebar %}
+      {% if item.sub %}
+        {% set is_active_parent = cur in item.sub|map(attribute='id') %}
+        <div class="sb-dropdown {% if is_active_parent %}open{% endif %}">
+          <button class="sb-item sb-dropdown-btn {% if is_active_parent %}active{% endif %}" onclick="this.parentElement.classList.toggle('open')" style="width: 100%; text-align: left; background: none; border: none;">
+            <i class="fa-solid {{ item.icon }}"></i>
+            <span>{{ item.label }}</span>
+            <i class="fa-solid fa-chevron-down sb-chevron" style="margin-left: auto; font-size: 10px; transition: transform 0.2s;"></i>
+          </button>
+          <div class="sb-submenu">
+            {% for subitem in item.sub %}
+              <a href="{{ subitem.url }}" class="sb-subitem {% if subitem.id == cur %}active{% endif %}">
+                {{ subitem.label }}
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      {% else %}
+        <a href="{{ item.url }}"
+           class="sb-item {% if item.id == cur %}active{% endif %}"
+           {% if item.id == 'alertas' and alertas_count %}data-badge="{{ alertas_count }}"{% endif %}>
+          <i class="fa-solid {{ item.icon }}"></i>
+          <span>{{ item.label }}</span>
+          {% if item.id == 'alertas' and alertas_count and alertas_count > 0 %}
+            <span class="sb-badge">{{ alertas_count }}</span>
+          {% endif %}
+        </a>
+      {% endif %}
     {% endfor %}
   </nav>
   <div class="sb-user">
@@ -68,14 +96,26 @@
 
 <!-- ══════════ CONTENIDO PRINCIPAL ══════════ -->
 <main class="main-content">
+  <!-- Header exclusivo para PC con la campanita -->
+  <header class="pc-header">
+    <div class="pc-header-right">
+      <button class="hdr-bell" onclick="toggleNotifDropdown(event)" style="background: none; border: none; cursor: pointer;">
+        <i class="fa-solid fa-bell"></i>
+        {% if alertas_count and alertas_count > 0 %}
+          <span class="alert-badge">{{ alertas_count }}</span>
+        {% endif %}
+      </button>
+    </div>
+  </header>
+
   {% block content %}{% endblock %}
 </main>
 
 <!-- ══════════ TAB-BAR (móvil) ══════════ -->
 <nav class="tab-bar">
-  {% for key, label, icon, href in nav %}
+  {% for key, label, icon, href in nav_tabbar %}
     <a href="{{ href }}"
-       class="tab-item {% if key == cur %}active{% endif %} {% if key == 'escanear' %}tab-scan{% endif %}">
+       class="tab-item {% if key == cur or (key == 'productos' and cur == 'segmentacion') %}active{% endif %} {% if key == 'escanear' %}tab-scan{% endif %}">
       <div class="tab-icon-wrap">
         <i class="fa-solid {{ icon }}"></i>
         {% if key == 'alertas' and alertas_count and alertas_count > 0 %}
@@ -102,6 +142,51 @@
     </div>
   </div>
 </div>
+
+<!-- ══════════ NOTIFICATION DROPDOWN ══════════ -->
+<div id="notif-dropdown" class="notif-dropdown hidden">
+  <div class="notif-header">
+    <span>Notificaciones</span>
+    {% if alertas_count and alertas_count > 0 %}
+      <span class="badge badge-red">{{ alertas_count }} nuevas</span>
+    {% endif %}
+  </div>
+  <div class="notif-body">
+    {% if alertas_count and alertas_count > 0 %}
+      <div class="notif-item">
+        <div class="notif-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+        <div class="notif-text">Tienes <strong>{{ alertas_count }}</strong> productos con alertas de stock críticas o urgentes que requieren tu atención.</div>
+      </div>
+    {% else %}
+      <div class="notif-item text-muted" style="justify-content: center; padding: 20px;">
+        No hay nuevas alertas.
+      </div>
+    {% endif %}
+  </div>
+  <div class="notif-footer">
+    <a href="{{ url_for('alertas') }}" class="btn-primary btn-full" style="height: 40px; font-size: 14px;">
+      Ir al Centro de Alertas
+    </a>
+  </div>
+</div>
+
+<script>
+  function toggleNotifDropdown(e) {
+    if (e) e.preventDefault();
+    const dropdown = document.getElementById('notif-dropdown');
+    dropdown.classList.toggle('hidden');
+    dropdown.classList.toggle('open');
+  }
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('notif-dropdown');
+    if (dropdown && !dropdown.classList.contains('hidden')) {
+      if (!e.target.closest('.notif-dropdown') && !e.target.closest('.hdr-bell')) {
+        dropdown.classList.add('hidden');
+        dropdown.classList.remove('open');
+      }
+    }
+  });
+</script>
 
 <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 {% block extra_js %}{% endblock %}
