@@ -764,71 +764,6 @@ def exportar_historial_csv():
     conn = get_db()
     if not conn:
         return "Error de base de datos", 500
-
-    cur = conn.cursor(dictionary=True)
-    # Soporte para filtrar por acción si se pasa ?accion=UPDATE
-    accion = request.args.get('accion', '').strip().upper()
-    if accion:
-        cur.execute(
-            "SELECT * FROM v_historial_completo WHERE accion=%s ORDER BY fecha DESC LIMIT 1000",
-            (accion,)
-        )
-    else:
-        cur.execute("SELECT * FROM v_historial_completo ORDER BY fecha DESC LIMIT 1000")
-
-    registros = cur.fetchall()
-    conn.close()
-
-    # Construir CSV en memoria
-    output = io.StringIO()
-    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
-
-    # Cabecera
-    writer.writerow([
-        'Fecha', 'Producto', 'SKU', 'Empleado', 'Rol Empleado',
-        'Accion', 'Campo Modificado', 'Valor Anterior', 'Valor Nuevo', 'Motivo'
-    ])
-
-    for r in registros:
-        fecha = r['fecha'].strftime('%d/%m/%Y %H:%M') if isinstance(r['fecha'], datetime) else str(r['fecha'])
-        writer.writerow([
-            fecha,
-            r.get('producto_nombre', ''),
-            r.get('sku', ''),
-            r.get('empleado_nombre', ''),
-            r.get('empleado_rol', ''),
-            r.get('accion', ''),
-            r.get('campo_modificado', ''),
-            r.get('valor_anterior', ''),
-            r.get('valor_nuevo', ''),
-            r.get('motivo', ''),
-        ])
-
-    # Nombre de archivo con timestamp
-    nombre_archivo = f"historial_tottus_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-
-    return Response(
-        output.getvalue(),
-        mimetype='text/csv; charset=utf-8',
-        headers={
-            'Content-Disposition': f'attachment; filename="{nombre_archivo}"',
-            'Content-Type': 'text/csv; charset=utf-8',
-        }
-    )
-
-# ════════════════════════════════════════════════════════════
-# FASE 4 — Exportación CSV del historial
-# ════════════════════════════════════════════════════════════
-@app.route('/historial/exportar', methods=['GET'])
-@login_required
-def exportar_historial_csv():
-    import csv
-    import io
-    from flask import Response
-
-    conn = get_db()
-    if not conn:
-        return "Error de base de datos", 500
     cur = conn.cursor(dictionary=True)
     accion = request.args.get('accion', '').strip().upper()
     if accion:
@@ -875,6 +810,8 @@ def exportar_historial_csv():
             'Content-Type': 'text/csv; charset=utf-8',
         }
     )
+
+
 
 # ════════════════════════════════════════════════════════════
 if __name__ == '__main__':
