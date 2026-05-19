@@ -829,7 +829,6 @@ def exportar_historial_csv():
     conn = get_db()
     if not conn:
         return "Error de base de datos", 500
-
     cur = conn.cursor(dictionary=True)
     accion = request.args.get('accion', '').strip().upper()
     if accion:
