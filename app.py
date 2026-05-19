@@ -53,7 +53,7 @@ def requiere_rol(*roles):
         return wrapper
     return decorator
 
-# ── Helper: Contar alertas activas (para el badge del header) ─
+
 def contar_alertas():
     conn = get_db()
     if not conn:
@@ -65,7 +65,6 @@ def contar_alertas():
     finally:
         conn.close()
 
-# ── Helper: Registrar historial ──────────────────────────────
 def registrar_historial(conn, producto_id, accion,
                         campo=None, anterior=None, nuevo=None, motivo=None):
     if 'usuario_id' not in session:
@@ -258,7 +257,7 @@ def escanear():
                            alertas_count=contar_alertas())
 
 # ════════════════════════════════════════════════════════════
-# API — PRODUCTOS  (CRUD completo)
+# UC5 - Xavier Ruiz Guevara - Gestión de productos.
 # ════════════════════════════════════════════════════════════
 @app.route('/api/productos', methods=['GET'])
 @login_required
@@ -267,8 +266,8 @@ def api_get_productos():
     if not conn:
         return jsonify({'success': False, 'message': 'Error de BD'}), 500
     cur = conn.cursor(dictionary=True)
-    q    = request.args.get('q', '').strip()
-    todos = request.args.get('todos', '0')          # todos=1 → incluye inactivos
+    q = request.args.get('q', '').strip()
+    todos = request.args.get('todos', '0')
     filtro_activo = '' if todos == '1' else 'WHERE activo=1'
     if q:
         cur.execute(f"""
@@ -288,17 +287,26 @@ def api_get_productos():
 @requiere_rol('supervisor', 'gerente')
 def api_crear_producto():
     data = request.get_json() or {}
-    sku    = (data.get('sku') or '').strip().upper()
+    sku = (data.get('sku') or '').strip().upper()
     nombre = (data.get('nombre') or '').strip()
     if not sku or not nombre:
         return jsonify({'success': False, 'message': 'SKU y nombre son obligatorios'}), 400
+
+    try:
+        stock = int(data.get('stock_total', 0))
+        precio = float(data.get('precio_unitario', 0))
+        venta = float(data.get('venta_dia', 0))
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Valores numéricos inválidos'}), 400
+
+    if stock < 0 or precio < 0 or venta < 0:
+        return jsonify({'success': False, 'message': 'El stock, precio y venta diaria no pueden ser negativos'}), 400
 
     conn = get_db()
     if not conn:
         return jsonify({'success': False, 'message': 'Error BD'}), 500
     cur = conn.cursor(dictionary=True)
 
-    # Verificar SKU único
     cur.execute("SELECT id FROM productos WHERE sku=%s", (sku,))
     if cur.fetchone():
         conn.close()
@@ -311,9 +319,9 @@ def api_crear_producto():
             VALUES (%s, %s, %s, %s, %s, %s, %s)
         """, (sku, nombre,
               data.get('categoria', ''),
-              int(data.get('stock_total', 0)),
-              float(data.get('precio_unitario', 0)),
-              float(data.get('venta_dia', 0)),
+              stock,
+              precio,
+              venta,
               data.get('ubicacion_gondola', '')))
         nuevo_id = cur.lastrowid
         registrar_historial(conn, nuevo_id, 'CREATE',
@@ -334,6 +342,16 @@ def api_actualizar_producto(prod_id):
     if not nombre:
         return jsonify({'success': False, 'message': 'Nombre obligatorio'}), 400
 
+    try:
+        stock = int(data.get('stock_total', 0))
+        precio = float(data.get('precio_unitario', 0))
+        venta = float(data.get('venta_dia', 0))
+    except ValueError:
+        return jsonify({'success': False, 'message': 'Valores numéricos inválidos'}), 400
+
+    if stock < 0 or precio < 0 or venta < 0:
+        return jsonify({'success': False, 'message': 'El stock, precio y venta diaria no pueden ser negativos'}), 400
+
     conn = get_db()
     if not conn:
         return jsonify({'success': False, 'message': 'Error BD'}), 500
@@ -344,7 +362,6 @@ def api_actualizar_producto(prod_id):
         conn.close()
         return jsonify({'success': False, 'message': 'Producto no encontrado'}), 404
 
-    # SKU único (si cambia)
     nuevo_sku = (data.get('sku') or anterior['sku']).strip().upper()
     cur.execute("SELECT id FROM productos WHERE sku=%s AND id!=%s", (nuevo_sku, prod_id))
     if cur.fetchone():
@@ -354,7 +371,7 @@ def api_actualizar_producto(prod_id):
     try:
         nuevo_stock = int(data.get('stock_total', anterior['stock_total']))
         cur.execute("""
-            UPDATE productos SET
+           UPDATE productos SET
                 sku=%s, nombre=%s, categoria=%s, stock_total=%s,
                 precio_unitario=%s, venta_dia=%s, ubicacion_gondola=%s
             WHERE id=%s
@@ -391,6 +408,8 @@ def api_eliminar_producto(prod_id):
         return jsonify({'success': False, 'message': 'No encontrado'}), 404
     try:
         cur.execute("UPDATE productos SET activo=0 WHERE id=%s", (prod_id,))
+        cur.execute("UPDATE alertas_quiebre SET activo=0 WHERE producto_id=%s", (prod_id,))
+        cur.execute("UPDATE segmentacion_inventario SET activo=0 WHERE producto_id=%s", (prod_id,))
         registrar_historial(conn, prod_id, 'DELETE',
                             motivo=f'Producto desactivado por {session.get("nombre")}')
         conn.commit()
@@ -404,14 +423,13 @@ def api_eliminar_producto(prod_id):
 @app.route('/api/productos/buscar-sku/<sku>', methods=['GET'])
 @login_required
 def api_buscar_sku(sku):
-    """Usado por el módulo Escáner. Devuelve datos del producto + alerta activa si existe."""
     conn = get_db()
     if not conn:
         return jsonify({'success': False, 'message': 'Error BD'}), 500
     cur = conn.cursor(dictionary=True)
     cur.execute("""
         SELECT p.*,
-               a.nivel  AS alerta_nivel,
+               a.nivel AS alerta_nivel,
                a.horas_restantes,
                a.estado_transf
         FROM productos p
