@@ -9,6 +9,14 @@ import pymysql.cursors
 
 app = Flask(__name__)
 
+@app.context_processor
+def inject_session():
+    return dict(session={
+        'nombre': 'Administrador Sistema',
+        'rol': 'gerente',
+        'codigo_empleado': 'ADMIN-001'
+    })
+
 # ── Configuración BD ─────────────────────────────────────────
 def obtenerconexion():
     try:
@@ -64,16 +72,17 @@ def login():
             clave  = request.form['password']
 
             conn = obtenerconexion()
+            usuario = None
             if conn:
                 with conn:
                     with conn.cursor() as cursor:
                         cursor.execute(
-                            "SELECT * FROM usuarios WHERE codigo_empleado=%s AND activo=1",
-                            (codigo,)
+                            "SELECT * FROM usuarios WHERE codigo_empleado=%s AND password_hash=%s AND activo=1",
+                            (codigo, clave)
                         )
                         usuario = cursor.fetchone()
 
-                if usuario and usuario['password_hash'] == clave:
+                if usuario:
                     return render_template('dashboard.html',
                                            active_page='dashboard',
                                            alertas_count=contar_alertas(),
@@ -85,6 +94,10 @@ def login():
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 
+@app.route('/logout')
+def logout():
+    return render_template('login.html', error=None)
+
 # ════════════════════════════════════════════════════════════
 # RUTAS — VISTAS
 # ════════════════════════════════════════════════════════════
@@ -92,7 +105,7 @@ def login():
 def dashboard():
     stats = {'alertas_criticas': 0, 'productos_ok': 0, 'total_productos': 0}
     alertas_recientes = []
-    conn = get_db()
+    conn = obtenerconexion()
     if conn:
         try:
             with conn:
