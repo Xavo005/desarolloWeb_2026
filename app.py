@@ -162,15 +162,8 @@ def alertas():
                            totales=totales_por_nivel)
 
 # ==============================================================================
-# UC6 - SEGMENTAR STOCK (Gianella)
-# Vista principal para crear y gestionar reglas de segmentación de inventario.
+# UC6 - SEGMENTAR STOCK
 # ==============================================================================
-@app.route('/segmentacion')
-def segmentacion():
-    # La lógica frontend pesada está en segmentacion.js (ver /api/segmentaciones)
-    return render_template('segmentacion.html',
-                           active_page='segmentacion',
-                           alertas_count=contar_alertas())
 
 @app.route('/historial')
 def historial():
@@ -208,46 +201,61 @@ def perfil():
                            alertas_count=contar_alertas(),
                            usuario=usuario)
 
-@app.route('/productos')
-def productos():
-    return render_template('productos.html',
-                           active_page='productos',
-                           alertas_count=contar_alertas())
-
 @app.route('/escanear')
 def escanear():
     return render_template('escanear.html',
                            active_page='escanear',
                            alertas_count=contar_alertas())
 
-# ════════════════════════════════════════════════════════════
-# UC5 - Xavier Ruiz Guevara - Gestión de productos.
-# ════════════════════════════════════════════════════════════
-@app.route('/listar_productos')
-def api_get_productos():
+@app.route('/productos')
+def productos():
     try:
         conn = obtenerconexion()
         q = request.args.get('q', '').strip()
-        todos = request.args.get('todos', '0')
-        filtro_activo = '' if todos == '1' else 'WHERE activo=1'
-        resultado = None
+        resultado = []
         if conn:
             with conn:
                 with conn.cursor() as cursor:
                     if q:
-                        cursor.execute(f"""
-                            SELECT * FROM productos WHERE
-                            (nombre LIKE %s OR sku LIKE %s OR categoria LIKE %s)
-                            {'AND activo=1' if todos != '1' else ''}
+                        cursor.execute("""
+                            SELECT * FROM productos 
+                            WHERE (nombre LIKE %s OR sku LIKE %s OR categoria LIKE %s) AND activo=1
                             ORDER BY nombre
                         """, (f'%{q}%', f'%{q}%', f'%{q}%'))
                     else:
-                        cursor.execute(f"SELECT * FROM productos {filtro_activo} ORDER BY nombre")
+                        cursor.execute("SELECT * FROM productos WHERE activo=1 ORDER BY nombre")
                     resultado = cursor.fetchall()
-        return render_template('lista_productos.html', datos=resultado)
+        return render_template('productos.html',
+                               active_page='productos',
+                               alertas_count=contar_alertas(),
+                               productos=resultado,
+                               edit_prod=None,
+                               q_search=q)
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 
+@app.route('/productos/editar/<int:prod_id>')
+def editar_producto_vista(prod_id):
+    try:
+        conn = obtenerconexion()
+        productos_lista = []
+        edit_prod = None
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Traer todos los productos para la tabla
+                    cursor.execute("SELECT * FROM productos WHERE activo=1 ORDER BY nombre")
+                    productos_lista = cursor.fetchall()
+                    # Traer el producto específico a editar
+                    cursor.execute("SELECT * FROM productos WHERE id=%s AND activo=1", (prod_id,))
+                    edit_prod = cursor.fetchone()
+        return render_template('productos.html',
+                               active_page='productos',
+                               alertas_count=contar_alertas(),
+                               productos=productos_lista,
+                               edit_prod=edit_prod)
+    except Exception as e:
+        return "<p>Excepción superior: " + repr(e) + "</p>"
 
 @app.route('/guardar_producto', methods=['POST'])
 def api_crear_producto():
@@ -271,9 +279,9 @@ def api_crear_producto():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("SELECT id FROM productos WHERE sku=%s", (sku,))
+                    cursor.execute("SELECT id FROM productos WHERE sku=%s AND activo=1", (sku,))
                     if cursor.fetchone():
-                        return f'<p>Error: El SKU "{sku}" ya existe</p>'
+                        return f'<p>Error: El SKU "{sku}" ya existe en el catálogo.</p>'
 
                     cursor.execute("""
                         INSERT INTO productos
@@ -287,16 +295,15 @@ def api_crear_producto():
                     registrar_historial(conn, nuevo_id, 'CREATE',
                                         motivo=f'Producto "{nombre}" agregado al catálogo')
                 conn.commit()
-            return render_template('exito.html')
-        return "<p>Error al insertar producto</p>"
+            return render_template('exito.html', mensaje='Producto registrado correctamente en el catálogo.', volver='/productos')
+        return "<p>Error al conectar con la base de datos.</p>"
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
-
 
 @app.route('/actualizar_producto', methods=['POST'])
 def api_actualizar_producto():
     try:
-        prod_id = int(request.form['idProducto'])
+        prod_id = int(request.form['prod_id'])
         nombre  = request.form['nombre'].strip()
         if not nombre:
             return "<p>Error: Nombre obligatorio</p>"
@@ -321,9 +328,9 @@ def api_actualizar_producto():
                         return "<p>Error: Producto no encontrado</p>"
 
                     nuevo_sku = request.form.get('sku', anterior['sku']).strip().upper()
-                    cursor.execute("SELECT id FROM productos WHERE sku=%s AND id!=%s", (nuevo_sku, prod_id))
+                    cursor.execute("SELECT id FROM productos WHERE sku=%s AND id!=%s AND activo=1", (nuevo_sku, prod_id))
                     if cursor.fetchone():
-                        return f'<p>Error: El SKU "{nuevo_sku}" ya está en uso</p>'
+                        return f'<p>Error: El SKU "{nuevo_sku}" ya está en uso por otro producto.</p>'
 
                     nuevo_stock = int(request.form.get('stock_total', anterior['stock_total']))
                     cursor.execute("""
@@ -343,11 +350,10 @@ def api_actualizar_producto():
                                             'stock_total', anterior['stock_total'], nuevo_stock,
                                             'Edición desde catálogo')
                 conn.commit()
-            return render_template('exito.html')
-        return "<p>Error al actualizar producto</p>"
+            return render_template('exito.html', mensaje='Producto actualizado correctamente.', volver='/productos')
+        return "<p>Error al conectar con la base de datos.</p>"
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
-
 
 @app.route('/eliminar_producto/<int:prod_id>')
 def api_eliminar_producto(prod_id):
@@ -366,8 +372,8 @@ def api_eliminar_producto(prod_id):
                     registrar_historial(conn, prod_id, 'DELETE',
                                         motivo='Producto desactivado')
                 conn.commit()
-            return render_template('exito.html')
-        return "<p>Error al eliminar producto</p>"
+            return render_template('exito.html', mensaje='Producto desactivado del catálogo correctamente.', volver='/productos')
+        return "<p>Error al conectar con la base de datos.</p>"
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 
@@ -445,22 +451,70 @@ def api_crear_conteo():
 # ════════════════════════════════════════════════════════════
 # API — SEGMENTACIONES  (CRUD completo)
 # ════════════════════════════════════════════════════════════
-@app.route('/listar_segmentaciones')
-def api_get_segmentaciones():
+@app.route('/segmentacion')
+def segmentacion():
     try:
         conn = obtenerconexion()
-        resultado = None
+        productos = []
+        segmentaciones = []
         if conn:
             with conn:
                 with conn.cursor() as cursor:
+                    # Productos para el select
+                    cursor.execute("SELECT * FROM productos WHERE activo=1 ORDER BY nombre")
+                    productos = cursor.fetchall()
+                    # Segmentaciones activas
                     cursor.execute("""
                         SELECT s.*, p.nombre, p.sku, p.stock_total
                         FROM segmentacion_inventario s
                         JOIN productos p ON s.producto_id = p.id
                         ORDER BY s.fecha_creacion DESC
                     """)
-                    resultado = cursor.fetchall()
-        return render_template('lista_segmentaciones.html', datos=resultado)
+                    segmentaciones = cursor.fetchall()
+        return render_template('segmentacion.html',
+                               active_page='productos',
+                               alertas_count=contar_alertas(),
+                               productos=productos,
+                               segmentaciones=segmentaciones,
+                               edit_seg=None)
+    except Exception as e:
+        return "<p>Excepción superior: " + repr(e) + "</p>"
+
+@app.route('/segmentacion/editar/<int:seg_id>')
+def editar_segmentacion_vista(seg_id):
+    try:
+        conn = obtenerconexion()
+        productos = []
+        segmentaciones = []
+        edit_seg = None
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Productos para el select
+                    cursor.execute("SELECT * FROM productos WHERE activo=1 ORDER BY nombre")
+                    productos = cursor.fetchall()
+                    # Segmentaciones activas
+                    cursor.execute("""
+                        SELECT s.*, p.nombre, p.sku, p.stock_total
+                        FROM segmentacion_inventario s
+                        JOIN productos p ON s.producto_id = p.id
+                        ORDER BY s.fecha_creacion DESC
+                    """)
+                    segmentaciones = cursor.fetchall()
+                    # Segmentación específica
+                    cursor.execute("""
+                        SELECT s.*, p.nombre, p.sku, p.stock_total
+                        FROM segmentacion_inventario s
+                        JOIN productos p ON s.producto_id = p.id
+                        WHERE s.id=%s
+                    """, (seg_id,))
+                    edit_seg = cursor.fetchone()
+        return render_template('segmentacion.html',
+                               active_page='productos',
+                               alertas_count=contar_alertas(),
+                               productos=productos,
+                               segmentaciones=segmentaciones,
+                               edit_seg=edit_seg)
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 
@@ -468,16 +522,18 @@ def api_get_segmentaciones():
 def api_crear_segmentacion():
     try:
         conn = obtenerconexion()
-        producto_id      = request.form['producto_id']
-        stock_final      = int(request.form.get('stock_final', 0))
+        producto_id      = int(request.form['producto_id'])
+        stock_final      = int(request.form.get('stock_cliente_final', 0))
         stock_revendedor = int(request.form.get('stock_revendedor', 0))
+        limite_final     = int(request.form.get('limite_compra_final', 0))
+        limite_revend    = int(request.form.get('limite_compra_revendedor', 0))
         motivo           = request.form.get('motivo', '')
 
         if conn:
             with conn:
                 with conn.cursor() as cursor:
                     # Validación: no superar stock total
-                    cursor.execute("SELECT stock_total FROM productos WHERE id=%s", (producto_id,))
+                    cursor.execute("SELECT stock_total FROM productos WHERE id=%s AND activo=1", (producto_id,))
                     prod = cursor.fetchone()
                     if not prod:
                         return "<p>Error: Producto no encontrado</p>"
@@ -492,21 +548,22 @@ def api_crear_segmentacion():
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """, (producto_id, 1,
                           stock_final, stock_revendedor,
-                          request.form.get('limite_compra_final', 0),
-                          request.form.get('limite_compra_revendedor', 0), motivo))
+                          limite_final, limite_revend, motivo))
                     registrar_historial(conn, producto_id, 'CREATE', motivo=motivo)
                 conn.commit()
-            return render_template('exito.html')
-        return "<p>Error al crear segmentación</p>"
+            return render_template('exito.html', mensaje='Ajuste de segmentación registrado con éxito.', volver='/segmentacion')
+        return "<p>Error al conectar con la base de datos.</p>"
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 
 @app.route('/actualizar_segmentacion', methods=['POST'])
 def api_actualizar_segmentacion():
     try:
-        seg_id           = int(request.form['idSegmentacion'])
-        stock_final      = int(request.form.get('stock_final', 0))
+        seg_id           = int(request.form['seg_id'])
+        stock_final      = int(request.form.get('stock_cliente_final', 0))
         stock_revendedor = int(request.form.get('stock_revendedor', 0))
+        limite_final     = int(request.form.get('limite_compra_final', 0))
+        limite_revend    = int(request.form.get('limite_compra_revendedor', 0))
         motivo           = request.form.get('motivo', '')
 
         conn = obtenerconexion()
@@ -533,16 +590,15 @@ def api_actualizar_segmentacion():
                             motivo=%s, usuario_id=%s, updated_at=NOW()
                         WHERE id=%s
                     """, (stock_final, stock_revendedor,
-                          request.form.get('limite_compra_final', anterior['limite_compra_final']),
-                          request.form.get('limite_compra_revendedor', anterior['limite_compra_revendedor']),
+                          limite_final, limite_revend,
                           motivo, 1, seg_id))
 
                     registrar_historial(conn, anterior['producto_id'], 'UPDATE',
                                         'stock_cliente_final',
                                         anterior['stock_cliente_final'], stock_final, motivo)
                 conn.commit()
-            return render_template('exito.html')
-        return "<p>Error al actualizar segmentación</p>"
+            return render_template('exito.html', mensaje='Ajuste de segmentación actualizado correctamente.', volver='/segmentacion')
+        return "<p>Error al conectar con la base de datos.</p>"
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 
@@ -561,8 +617,8 @@ def api_eliminar_segmentacion(seg_id):
                                         motivo='Segmentación eliminada')
                     cursor.execute("DELETE FROM segmentacion_inventario WHERE id=%s", (seg_id,))
                 conn.commit()
-            return render_template('exito.html')
-        return "<p>Error al eliminar segmentación</p>"
+            return render_template('exito.html', mensaje='Ajuste de segmentación eliminado.', volver='/segmentacion')
+        return "<p>Error al conectar con la base de datos.</p>"
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 
@@ -582,8 +638,8 @@ def api_toggle_segmentacion(seg_id):
                     registrar_historial(conn, row['producto_id'], 'TOGGLE',
                                         'activo', row['activo'], nuevo_estado)
                 conn.commit()
-            return render_template('exito.html')
-        return "<p>Error al actualizar estado</p>"
+            return render_template('exito.html', mensaje='Estado de segmentación modificado con éxito.', volver='/segmentacion')
+        return "<p>Error al conectar con la base de datos.</p>"
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 

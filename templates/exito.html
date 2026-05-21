@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Operación Exitosa{% endblock %}
+{% block page_title %}Éxito{% endblock %}
+
+{% block extra_css %}
+<style>
+  .success-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+  .success-card {
+    background: var(--surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow);
+    padding: 40px;
+    max-width: 450px;
+    width: 100%;
+    text-align: center;
+    border-top: 4px solid var(--primary);
+  }
+  .success-icon {
+    font-size: 48px;
+    color: var(--primary);
+    margin-bottom: 20px;
+  }
+  .success-card h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 12px;
+  }
+  .success-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 30px;
+    line-height: 1.5;
+  }
+  .btn-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="success-wrap">
+  <div class="success-card">
+    <div class="success-icon">
+      <i class="fa-solid fa-circle-check"></i>
+    </div>
+    <h2>¡Operación Exitosa!</h2>
+    <p>{{ mensaje | default('La transacción se ha procesado correctamente en el sistema.') }}</p>
+    <div class="btn-wrap">
+      <a href="{{ volver | default('/dashboard') }}" class="btn-primary" style="display: block; text-decoration: none; line-height: 20px;">
+        <i class="fa-solid fa-arrow-left"></i> Volver a la sección
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

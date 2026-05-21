@@ -23,53 +23,76 @@
   <!-- Formulario crear/editar segmentación -->
   <div class="seg-form-card">
     <div style="font-size:16px;font-weight:600;margin-bottom:20px;border-left:3px solid var(--primary);padding-left:10px">
-      <i class="fa-solid fa-sliders"></i> Ajuste de Segmentación
+      <i class="fa-solid fa-sliders"></i> {% if edit_seg %}Editar Ajuste de Segmentación (Producto: {{ edit_seg.nombre }}){% else %}Ajuste de Segmentación{% endif %}
     </div>
-    <form id="seg-form">
-      <input type="hidden" id="seg-id" value="">
+    {% set form_action = '/actualizar_segmentacion' if edit_seg else '/guardar_segmentacion' %}
+    <form id="seg-form" action="{{ form_action }}" method="POST">
+      {% if edit_seg %}
+        <input type="hidden" name="seg_id" value="{{ edit_seg.id }}">
+      {% endif %}
+      
       <div class="form-group">
         <label>Producto</label>
-        <select id="producto-select" onchange="cargarProducto(this.value)">
+        <select name="producto_id" id="producto-select" onchange="cargarProducto(this.value)" required {% if edit_seg %}disabled{% endif %}>
           <option value="">— Selecciona un producto —</option>
+          {% for p in productos %}
+            <option value="{{ p.id }}" {% if edit_seg and edit_seg.producto_id == p.id %}selected{% endif %}>{{ p.nombre }} — {{ p.sku }}</option>
+          {% endfor %}
         </select>
+        {% if edit_seg %}
+          <!-- Como select disabled no se envia en form, agregamos un hidden para conservar el producto_id -->
+          <input type="hidden" name="producto_id" value="{{ edit_seg.producto_id }}">
+        {% endif %}
       </div>
-      <div class="stock-preview hidden" id="stock-preview">
-        Stock disponible: <span id="stock-disponible">0</span> unidades
+      
+      <div class="stock-preview {% if not edit_seg %}hidden{% endif %}" id="stock-preview">
+        Stock disponible: <span id="stock-disponible">{% if edit_seg %}{{ edit_seg.stock_total }}{% else %}0{% endif %}</span> unidades
       </div>
+      
       <div class="form-row mt-3">
         <div class="form-group">
           <label>Stock Cliente Final</label>
-          <input type="number" id="stock-final" min="0" placeholder="ej. 52" oninput="actualizarPreview()">
+          <input type="number" name="stock_cliente_final" id="stock-final" min="0" placeholder="ej. 52" oninput="actualizarPreview()" value="{{ edit_seg.stock_cliente_final if edit_seg else 0 }}" required>
         </div>
         <div class="form-group">
           <label>Stock Revendedor</label>
-          <input type="number" id="stock-revend" min="0" placeholder="ej. 28" oninput="actualizarPreview()">
+          <input type="number" name="stock_revendedor" id="stock-revend" min="0" placeholder="ej. 28" oninput="actualizarPreview()" value="{{ edit_seg.stock_revendedor if edit_seg else 0 }}" required>
         </div>
       </div>
+      
       <div id="stock-warn" class="hidden" style="color:var(--danger);font-size:13px;margin-bottom:12px">
         <i class="fa-solid fa-triangle-exclamation"></i> El total supera el stock disponible.
       </div>
+      
       <div class="form-row">
         <div class="form-group">
           <label>Límite por Cliente (uds/compra)</label>
-          <input type="number" id="lim-final" min="0" placeholder="ej. 3">
+          <input type="number" name="limite_compra_final" id="lim-final" min="0" placeholder="ej. 3" value="{{ edit_seg.limite_compra_final if edit_seg else 0 }}">
         </div>
         <div class="form-group">
           <label>Límite por Revendedor</label>
-          <input type="number" id="lim-revend" min="0" placeholder="ej. 10">
+          <input type="number" name="limite_compra_revendedor" id="lim-revend" min="0" placeholder="ej. 10" value="{{ edit_seg.limite_compra_revendedor if edit_seg else 0 }}">
         </div>
       </div>
+      
       <div class="form-group">
         <label>Motivo del Ajuste</label>
-        <textarea id="motivo" placeholder="Ej: Alta demanda post-feriado, merma detectada..."></textarea>
+        <textarea name="motivo" id="motivo" placeholder="Ej: Alta demanda post-feriado, merma detectada...">{{ edit_seg.motivo if edit_seg else '' }}</textarea>
       </div>
+      
       <div style="display:flex;gap:12px">
-        <button type="button" class="btn-primary flex-1" onclick="guardarSegmentacion()">
+        <button type="submit" class="btn-primary flex-1">
           <i class="fa-solid fa-floppy-disk"></i> Guardar Ajuste
         </button>
-        <button type="button" class="btn-secondary" onclick="limpiarFormulario()" style="padding:12px 16px">
-          Cancelar
-        </button>
+        {% if edit_seg %}
+          <a href="/segmentacion" class="btn-secondary" style="padding:12px 16px; text-decoration: none; text-align: center; display: inline-block;">
+            Cancelar Edición
+          </a>
+        {% else %}
+          <button type="reset" class="btn-secondary" style="padding:12px 16px">
+            Limpiar
+          </button>
+        {% endif %}
       </div>
     </form>
   </div>
@@ -90,7 +113,34 @@
           </tr>
         </thead>
         <tbody id="seg-tbody">
-          <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">Cargando...</td></tr>
+          {% if segmentaciones %}
+            {% for s in segmentaciones %}
+              <tr>
+                <td><strong>{{ s.nombre }}</strong><br><span style="font-size:11px;color:var(--text-muted)">{{ s.sku }}</span></td>
+                <td>{{ s.stock_cliente_final }}</td>
+                <td>{{ s.stock_revendedor }}</td>
+                <td style="font-size:12px">Cliente: {{ s.limite_compra_final }} | Revend: {{ s.limite_compra_revendedor }}</td>
+                <td>
+                  <span class="badge {% if s.activo %}badge-green{% else %}badge-gray{% endif %}">
+                    {% if s.activo %}Activa{% else %}Inactiva{% endif %}
+                  </span>
+                </td>
+                <td style="white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap">
+                  <a href="/segmentacion/editar/{{ s.id }}" class="btn-edit" title="Editar regla" style="padding: 4px 8px; text-decoration: none; color: #1a73e8; background: transparent;">
+                    <i class="fa-solid fa-pen"></i>
+                  </a>
+                  <a href="/toggle_segmentacion/{{ s.id }}" class="btn-secondary" title="Alternar Estado" style="padding: 4px 8px; text-decoration: none; font-size: 11px;">
+                    {% if s.activo %}Desactivar{% else %}Activar{% endif %}
+                  </a>
+                  <a href="/eliminar_segmentacion/{{ s.id }}" class="btn-delete" title="Eliminar regla" style="padding: 4px 8px; text-decoration: none; color: #d93025; background: transparent;" onclick="return confirm('¿Deseas eliminar la regla de segmentación para &quot;{{ s.nombre }}&quot;?');">
+                    <i class="fa-solid fa-trash"></i>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No hay reglas de segmentación registradas.</td></tr>
+          {% endif %}
         </tbody>
       </table>
     </div>
@@ -101,30 +151,15 @@
 {% block extra_js %}
 <script>
 // ==============================================================================
-// UC6 - SEGMENTAR STOCK (Desarrollado por: Gianella)
-// Funciones frontend para la vista de reglas de segmentación y límites de compra.
+// UC6 - SEGMENTAR STOCK (Local Helper client-side validation)
 // ==============================================================================
 
-let listaProductos = [];
-let mapaStockTotal = {}; // Mapa para obtener el stock rápido por ID
-
-/**
- * UC6: Carga la lista de productos disponibles en el <select> del formulario.
- */
-async function cargarProductos() {
-  const respuesta = await fetch('/api/productos');
-  const datos = await respuesta.json();
-  
-  if (!datos.success) return;
-  
-  listaProductos = datos.data;
-  const selector = document.getElementById('producto-select');
-  
-  datos.data.forEach(prod => {
-    mapaStockTotal[prod.id] = prod.stock_total;
-    selector.innerHTML += `<option value="${prod.id}">${prod.nombre} — ${prod.sku}</option>`;
-  });
-}
+// Mapa para obtener el stock rápido por ID inyectado por Jinja
+const mapaStockTotal = {
+  {% for p in productos %}
+    "{{ p.id }}": {{ p.stock_total }},
+  {% endfor %}
+};
 
 /**
  * UC6: Muestra la vista previa del stock disponible del producto seleccionado.
@@ -160,133 +195,5 @@ function actualizarPreview() {
     alertaExceso.classList.add('hidden'); 
   }
 }
-
-/**
- * UC6: Envía los datos del formulario al backend para crear o actualizar la segmentación.
- */
-async function guardarSegmentacion() {
-  const idSegmentacion = document.getElementById('seg-id').value;
-  const idProducto = document.getElementById('producto-select').value;
-  
-  if (!idProducto) { 
-    showToast('Selecciona un producto primero.', 'warning'); 
-    return; 
-  }
-  
-  const datosPayload = {
-    producto_id: +idProducto,
-    stock_final:             +document.getElementById('stock-final').value  || 0,
-    stock_revendedor:        +document.getElementById('stock-revend').value || 0,
-    limite_compra_final:     +document.getElementById('lim-final').value    || 0,
-    limite_compra_revendedor:+document.getElementById('lim-revend').value   || 0,
-    motivo: document.getElementById('motivo').value,
-  };
-  
-  if (idSegmentacion) {
-    // Si hay un ID, es una actualización (PUT)
-    const exito = await apiPut(`/api/segmentaciones/${idSegmentacion}`, datosPayload, 'Regla actualizada con éxito');
-    if (exito) { limpiarFormulario(); cargarTabla(); }
-  } else {
-    // Si no hay ID, es una creación (POST)
-    const exito = await apiPost('/api/segmentaciones', datosPayload, 'Regla de segmentación creada');
-    if (exito) { limpiarFormulario(); cargarTabla(); }
-  }
-}
-
-/**
- * UC6: Restablece el formulario a su estado original vacío.
- */
-function limpiarFormulario() {
-  document.getElementById('seg-id').value = '';
-  document.getElementById('producto-select').value = '';
-  ['stock-final','stock-revend','lim-final','lim-revend','motivo'].forEach(campoId => {
-    document.getElementById(campoId).value = '';
-  });
-  document.getElementById('stock-preview').classList.add('hidden');
-}
-
-/**
- * UC6: Carga los datos de una segmentación existente en el formulario para editarla.
- */
-function editarSegmentacion(id, prodId, sf, sr, lf, lr, motivoStr) {
-  document.getElementById('seg-id').value = id;
-  document.getElementById('producto-select').value = prodId;
-  document.getElementById('stock-final').value  = sf;
-  document.getElementById('stock-revend').value = sr;
-  document.getElementById('lim-final').value    = lf;
-  document.getElementById('lim-revend').value   = lr;
-  document.getElementById('motivo').value       = motivoStr || '';
-  
-  cargarProducto(prodId);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-/**
- * UC6: Pide confirmación y elimina una regla de segmentación del catálogo.
- */
-async function eliminarSegmentacion(idSegmentacion, nombreProducto) {
-  showModal(`¿Deseas eliminar la regla de segmentación para "${nombreProducto}"?`, async () => {
-    const exito = await apiDelete(`/api/segmentaciones/${idSegmentacion}`, 'Segmentación eliminada correctamente');
-    if (exito) cargarTabla();
-  });
-}
-
-/**
- * UC6: Activa o desactiva rápidamente una regla de segmentación.
- */
-async function toggleSegmentacion(idSegmentacion, botonElement) {
-  const respuesta = await fetch(`/api/segmentaciones/${idSegmentacion}/toggle`, { method: 'PATCH' });
-  const datos = await respuesta.json();
-  
-  if (datos.success) {
-    botonElement.textContent = datos.activo ? 'Desactivar' : 'Activar';
-    showToast(datos.activo ? 'Regla Activada' : 'Regla Desactivada', 'success');
-    cargarTabla();
-  }
-}
-
-/**
- * UC6: Obtiene del backend la lista de todas las reglas y las renderiza en la tabla.
- */
-async function cargarTabla() {
-  const respuesta = await fetch('/api/segmentaciones');
-  const datos = await respuesta.json();
-  const cuerpoTabla = document.getElementById('seg-tbody');
-  
-  if (!datos.success || !datos.data.length) {
-    cuerpoTabla.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-muted)">No hay reglas de segmentación activas.</td></tr>';
-    return;
-  }
-  
-  cuerpoTabla.innerHTML = datos.data.map(regla => `
-    <tr>
-      <td><strong>${regla.nombre}</strong><br><span style="font-size:11px;color:var(--text-muted)">${regla.sku}</span></td>
-      <td>${regla.stock_cliente_final}</td>
-      <td>${regla.stock_revendedor}</td>
-      <td style="font-size:12px">Cliente: ${regla.limite_compra_final} | Revend: ${regla.limite_compra_revendedor}</td>
-      <td><span class="badge ${regla.activo ? 'badge-green' : 'badge-gray'}">${regla.activo ? 'Activa' : 'Inactiva'}</span></td>
-      <td style="white-space:nowrap;display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn-edit" onclick='editarSegmentacion(${regla.id}, ${regla.producto_id}, ${regla.stock_cliente_final}, ${regla.stock_revendedor}, ${regla.limite_compra_final}, ${regla.limite_compra_revendedor}, "${(regla.motivo||'').replace(/"/g,'')}")' title="Editar regla">
-          <i class="fa-solid fa-pen"></i>
-        </button>
-        <button class="btn-delete" onclick="eliminarSegmentacion(${regla.id}, '${regla.nombre}')" title="Eliminar regla">
-          <i class="fa-solid fa-trash"></i>
-        </button>
-      </td>
-    </tr>
-  `).join('');
-}
-
-// Inicialización de la vista al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
-  cargarProductos();
-  cargarTabla();
-  
-  // Soporte de enlace directo desde la vista de Alertas (UC4 -> UC6)
-  const parametrosURL = new URLSearchParams(window.location.search);
-  if (parametrosURL.get('alerta_id')) {
-    showToast('Selecciona el producto afectado y ajusta su stock.', 'warning');
-  }
-});
 </script>
 {% endblock %}

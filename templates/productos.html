@@ -27,77 +27,92 @@
   <div class="card mb-4">
     <div style="font-size:16px;font-weight:600;margin-bottom:20px;border-left:3px solid var(--primary);padding-left:10px">
       <i class="fa-solid fa-box-open"></i>
-      <span id="form-title">Nuevo Producto</span>
+      <span id="form-title">{% if edit_prod %}Editar Producto (SKU: {{ edit_prod.sku }}){% else %}Nuevo Producto{% endif %}</span>
     </div>
-    <form id="prod-form" onsubmit="return false">
-      <input type="hidden" id="prod-id">
+    {% set form_action = '/actualizar_producto' if edit_prod else '/guardar_producto' %}
+    <form id="prod-form" action="{{ form_action }}" method="POST">
+      {% if edit_prod %}
+        <input type="hidden" name="prod_id" value="{{ edit_prod.id }}">
+      {% endif %}
 
       <div class="form-grid-2">
         <div class="form-group">
           <label>SKU <span style="color:var(--danger)">*</span></label>
-          <input type="text" id="prod-sku" placeholder="Ej: LAC-001" maxlength="50" required>
+          <input type="text" name="sku" placeholder="Ej: LAC-001" maxlength="50" required value="{{ edit_prod.sku if edit_prod else '' }}" {% if edit_prod %}readonly{% endif %}>
         </div>
         <div class="form-group">
           <label>Nombre <span style="color:var(--danger)">*</span></label>
-          <input type="text" id="prod-nombre" placeholder="Ej: Leche Gloria Entera 1L" maxlength="100" required>
+          <input type="text" name="nombre" placeholder="Ej: Leche Gloria Entera 1L" maxlength="100" required value="{{ edit_prod.nombre if edit_prod else '' }}">
         </div>
       </div>
 
       <div class="form-grid-3">
         <div class="form-group">
           <label>Categoría</label>
-          <select id="prod-categoria">
+          <select name="categoria">
             <option value="">— Seleccionar —</option>
-            <option>Lácteos</option><option>Granos</option><option>Abarrotes</option>
-            <option>Limpieza</option><option>Bebidas</option><option>Snacks</option>
-            <option>Carnes</option><option>Frutas y Verduras</option><option>Panadería</option>
+            {% set cats = ['Lácteos', 'Granos', 'Abarrotes', 'Limpieza', 'Bebidas', 'Snacks', 'Carnes', 'Frutas y Verduras', 'Panadería'] %}
+            {% for cat in cats %}
+              <option {% if edit_prod and edit_prod.categoria == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="form-group">
           <label>Stock Total (uds)</label>
-          <input type="number" id="prod-stock" min="0" placeholder="0">
+          <input type="number" name="stock_total" min="0" placeholder="0" value="{{ edit_prod.stock_total if edit_prod else 0 }}">
         </div>
         <div class="form-group">
           <label>Precio Unitario (S/.)</label>
-          <input type="number" id="prod-precio" min="0" step="0.01" placeholder="0.00">
+          <input type="number" name="precio_unitario" min="0" step="0.01" placeholder="0.00" value="{{ edit_prod.precio_unitario if edit_prod else '0.00' }}">
         </div>
       </div>
 
       <div class="form-grid-2">
         <div class="form-group">
           <label>Velocidad de Venta (uds/día)</label>
-          <input type="number" id="prod-venta" min="0" step="0.1" placeholder="0.0">
+          <input type="number" name="venta_dia" min="0" step="0.1" placeholder="0.0" value="{{ edit_prod.venta_dia if edit_prod else '0.0' }}">
           <span style="font-size:11px;color:var(--text-muted)">Para calcular horas hasta quiebre</span>
         </div>
         <div class="form-group">
           <label>Ubicación en Góndola</label>
-          <input type="text" id="prod-ubicacion" placeholder="Ej: Pasillo A3 - Estante 2" maxlength="100">
+          <input type="text" name="ubicacion_gondola" placeholder="Ej: Pasillo A3 - Estante 2" maxlength="100" value="{{ edit_prod.ubicacion_gondola if edit_prod else '' }}">
         </div>
       </div>
 
-      <div id="sku-error" class="hidden" style="color:var(--danger);font-size:13px;margin-bottom:12px">
-        <i class="fa-solid fa-circle-xmark"></i> <span id="sku-error-msg">Ese SKU ya existe.</span>
+      {% if error_sku %}
+      <div id="sku-error" style="color:var(--danger);font-size:13px;margin-bottom:12px">
+        <i class="fa-solid fa-circle-xmark"></i> <span>Ese SKU ya existe en el catálogo.</span>
       </div>
+      {% endif %}
 
       <div style="display:flex;gap:12px;flex-wrap:wrap">
-        <button type="button" class="btn-primary" style="flex:1;min-width:140px" onclick="guardarProducto()">
+        <button type="submit" class="btn-primary" style="flex:1;min-width:140px">
           <i class="fa-solid fa-floppy-disk"></i> Guardar Producto
         </button>
-        <button type="button" class="btn-secondary" onclick="limpiarFormProd()" style="padding:12px 20px">
-          <i class="fa-solid fa-xmark"></i> Cancelar
-        </button>
+        {% if edit_prod %}
+          <a href="/productos" class="btn-secondary" style="padding:12px 20px; text-decoration: none; text-align: center; display: inline-block;">
+            <i class="fa-solid fa-xmark"></i> Cancelar Edición
+          </a>
+        {% else %}
+          <button type="reset" class="btn-secondary" style="padding:12px 20px">
+            <i class="fa-solid fa-rotate-left"></i> Limpiar
+          </button>
+        {% endif %}
       </div>
     </form>
   </div>
 
   <!-- ── Buscador + tabla ── -->
   <div style="font-size:16px;font-weight:600;margin-bottom:12px">Catálogo de Productos</div>
-  <div class="search-bar">
-    <input type="text" id="buscar-prod" placeholder="🔍  Buscar por nombre, SKU o categoría…" oninput="filtrarTabla(this.value)">
-    <button class="btn-secondary" onclick="cargarTablaProductos()" style="white-space:nowrap;padding:0 16px">
-      <i class="fa-solid fa-rotate-right"></i>
+  <form class="search-bar" action="/productos" method="GET">
+    <input type="text" name="q" placeholder="🔍  Buscar por nombre o categoría…" value="{{ q_search | default('') }}">
+    <button type="submit" class="btn-primary" style="white-space:nowrap;padding:0 16px">
+      Buscar
     </button>
-  </div>
+    <a href="/productos" class="btn-secondary" style="white-space:nowrap;padding:12px 16px; display: inline-block; text-decoration: none; line-height: 20px;">
+      <i class="fa-solid fa-rotate-right"></i> Limpiar
+    </a>
+  </form>
   <div class="card" style="padding:0">
     <div class="prod-table-wrap">
       <table id="prod-table">
@@ -114,9 +129,42 @@
           </tr>
         </thead>
         <tbody id="prod-tbody">
-          <tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text-muted)">
-            <i class="fa-solid fa-spinner fa-spin"></i> Cargando…
-          </td></tr>
+          {% if productos %}
+            {% for p in productos %}
+              <tr>
+                <td><span class="sku-badge">{{ p.sku }}</span></td>
+                <td style="font-weight:500">{{ p.nombre }}</td>
+                <td>{% if p.categoria %}<span class="badge badge-gray">{{ p.categoria }}</span>{% else %}—{% endif %}</td>
+                <td>
+                  {% if p.stock_total == 0 %}
+                    <span style="background-color: #fef0f0; color: #d93025; padding: 4px 8px; border-radius: 4px; font-weight: bold;">Agotado (0)</span>
+                  {% elif p.stock_total < 50 %}
+                    <span style="background-color: #fef7e0; color: #b06000; padding: 4px 8px; border-radius: 4px; font-weight: bold;">Bajo ({{ p.stock_total }})</span>
+                  {% else %}
+                    <span style="background-color: #e6f4ea; color: #0b9b43; padding: 4px 8px; border-radius: 4px; font-weight: bold;">Normal ({{ p.stock_total }})</span>
+                  {% endif %}
+                </td>
+                <td>{% if p.precio_unitario %}S/. {{ "%.2f"|format(p.precio_unitario) }}{% else %}—{% endif %}</td>
+                <td>{% if p.venta_dia %}{{ "%.1f"|format(p.venta_dia) }} uds{% else %}—{% endif %}</td>
+                <td style="font-size:12px;color:var(--text-muted)">{{ p.ubicacion_gondola or '—' }}</td>
+                <td style="white-space:nowrap;display:flex;gap:6px">
+                  <a href="/productos/editar/{{ p.id }}" class="btn-edit" title="Editar" style="padding: 4px 8px; text-decoration: none; color: #1a73e8; background: transparent;">
+                    <i class="fa-solid fa-pen"></i>
+                  </a>
+                  <a href="/eliminar_producto/{{ p.id }}" class="btn-delete" title="Eliminar" style="padding: 4px 8px; text-decoration: none; color: #d93025; background: transparent;" onclick="return confirm('¿Desactivar el producto &quot;{{ p.nombre }}&quot; del catálogo?');">
+                    <i class="fa-solid fa-trash"></i>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="8" style="text-align:center;padding:48px;color:var(--text-muted)">
+                <i class="fa-solid fa-box-open" style="font-size:36px;display:block;margin-bottom:12px;opacity:.3"></i>
+                No se encontraron productos.
+              </td>
+            </tr>
+          {% endif %}
         </tbody>
       </table>
     </div>
@@ -126,5 +174,4 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/productos.js') }}"></script>
 {% endblock %}
