@@ -29,7 +29,7 @@ CREATE TABLE usuarios (
     sede            VARCHAR(100) DEFAULT 'Chiclayo - Mall Aventura',
     activo          TINYINT(1)   DEFAULT 1,
     ultimo_login    DATETIME,
-    created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP
+    created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
     palabra_clave VARCHAR(100) NULL
 ) ENGINE=InnoDB;
 
@@ -38,6 +38,9 @@ CREATE TABLE usuarios (
 INSERT INTO usuarios (codigo_empleado, nombre, email, password_hash, rol, sede) VALUES
 ('SUP-2024-001', 'María Gonzales',  'maria.gonzales@tottus.com.pe',  'PENDIENTE_HASH', 'supervisor', 'Chiclayo - Mall Aventura'),
 ('OPE-2024-001', 'Juan Ríos',       'juan.rios@tottus.com.pe',       'PENDIENTE_HASH', 'operario',   'Chiclayo - Mall Aventura');
+UPDATE usuarios 
+SET palabra_clave = 'adm' 
+WHERE codigo_empleado = 'ADMIN-001';
 
 -- ============================================================
 -- TABLA 2: productos
