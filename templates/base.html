@@ -13,23 +13,35 @@
 <body>
 
 {# ── Navegación Lateral (PC) con Dropdown ──────────────── #}
-{%- set nav_sidebar = [
+{%- set base_nav = [
   {'id': 'dashboard', 'label': 'Inicio', 'icon': 'fa-house', 'url': url_for('dashboard')},
   {'id': 'inventario', 'label': 'Inventario', 'icon': 'fa-box', 'url': '#', 'sub': [
       {'id': 'productos', 'label': 'Catálogo', 'url': url_for('productos')},
       {'id': 'segmentacion', 'label': 'Segmentación', 'url': url_for('segmentacion')}
   ]},
-  {'id': 'escanear', 'label': 'Escanear', 'icon': 'fa-qrcode', 'url': url_for('escanear')},
-  {'id': 'perfil', 'label': 'Perfil', 'icon': 'fa-user', 'url': url_for('perfil')}
+  {'id': 'escanear', 'label': 'Escanear', 'icon': 'fa-qrcode', 'url': url_for('escanear')}
 ] -%}
 
-{# ── Navegación Móvil (Plana, 5 ítems máximo) ──────────── #}
-{%- set nav_tabbar = [
+{# Agregamos "Personal" SOLO si es Gerente o Técnico (Ícono de Fotocheck) #}
+{%- if session.rol in ['gerente', 'tecnico'] -%}
+  {%- set base_nav = base_nav + [{'id': 'trabajadores', 'label': 'Personal', 'icon': 'fa-id-card', 'url': url_for('listar_trabajadores')}] -%}
+{%- endif -%}
+
+{# Añadimos Perfil al final para todos #}
+{%- set nav_sidebar = base_nav + [{'id': 'perfil', 'label': 'Perfil', 'icon': 'fa-user', 'url': url_for('perfil')}] -%}
+
+{# ── Navegación Móvil (Plana) ──────────── #}
+{%- set base_tab = [
   ('dashboard', 'Inicio', 'fa-house', url_for('dashboard')),
   ('productos', 'Inventario', 'fa-box', url_for('productos')),
-  ('escanear',  'Escanear', 'fa-qrcode', url_for('escanear')),
-  ('perfil',    'Perfil', 'fa-user', url_for('perfil'))
+  ('escanear',  'Escanear', 'fa-qrcode', url_for('escanear'))
 ] -%}
+
+{%- if session.rol in ['gerente', 'tecnico'] -%}
+  {%- set base_tab = base_tab + [('trabajadores', 'Personal', 'fa-id-card', url_for('listar_trabajadores'))] -%}
+{%- endif -%}
+
+{%- set nav_tabbar = base_tab + [('perfil', 'Perfil', 'fa-user', url_for('perfil'))] -%}
 {%- set cur = active_page | default('dashboard') -%}
 
 <!-- ══════════ MASTER HEADER (móvil) ══════════ -->

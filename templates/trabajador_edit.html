@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Modificar Trabajador{% endblock %}
+{% block page_title %}Editar Trabajador{% endblock %}
+
+{% block content %}
+<div class="px-4" style="max-width:550px; margin:0 auto; padding-top:24px">
+  
+  <div class="card">
+    <div style="font-size:18px; font-weight:600; color:var(--primary); border-left:3px solid var(--primary); padding-left:10px; margin-bottom:20px">
+      Modificar Datos y Perfil
+    </div>
+
+    <form action="{{ url_for('actualizar_trabajador') }}" method="POST">
+      <input type="hidden" name="id" value="{{ trabajador.id }}">
+
+      <div class="form-group">
+        <label style="font-size:13px; font-weight:600; color:var(--text)">Nombre Completo</label>
+        <input type="text" name="nombre" value="{{ trabajador.nombre }}" required style="width:100%; margin-top:4px">
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:16px">
+        <div class="form-group" style="flex:1">
+          <label style="font-size:13px; font-weight:600; color:var(--text)">Código de Empleado</label>
+          <input type="text" name="codigo_empleado" value="{{ trabajador.codigo_empleado }}" required style="width:100%; margin-top:4px">
+        </div>
+        
+        <div class="form-group" style="flex:1">
+          <label style="font-size:13px; font-weight:600; color:var(--text)">Correo Electrónico</label>
+          <input type="email" name="email" value="{{ trabajador.email if trabajador.email else '' }}" placeholder="usuario@tottus.com.pe" style="width:100%; margin-top:4px">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:16px">
+        <div class="form-group" style="flex:1">
+          <label style="font-size:13px; font-weight:600; color:var(--text)">Sede</label>
+          <input type="text" name="sede" value="{{ trabajador.sede if trabajador.sede else '' }}" required style="width:100%; margin-top:4px">
+        </div>
+        
+        <div class="form-group" style="flex:1">
+          <label style="font-size:13px; font-weight:600; color:var(--text)">Modificar Perfil</label>
+          <select name="rol" required style="width:100%; height:42px; border-radius:8px; border:1px solid var(--border); padding:0 12px; background:var(--surface); color:var(--text); margin-top:4px">
+            <option value="operario" {% if trabajador.rol == 'operario' %}selected{% endif %}>Operario</option>
+            <option value="gerente" {% if trabajador.rol == 'gerente' %}selected{% endif %}>Gerente</option>
+            <option value="tecnico" {% if trabajador.rol == 'tecnico' %}selected{% endif %}>Técnico</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-top:16px">
+        <label style="font-size:13px; font-weight:600; color:var(--text)">Palabra Clave de Seguridad</label>
+        <input type="text" name="palabra_clave" value="{{ trabajador.palabra_clave if trabajador.palabra_clave else '' }}" required style="width:100%; margin-top:4px">
+      </div>
+
+      <div class="form-group" style="margin-top:20px; border-top:1px dashed var(--border); padding-top:16px">
+        <label style="font-size:13px; font-weight:600; color:var(--text)">
+          <i class="fa-solid fa-key" style="color:var(--primary)"></i> Forzar Nueva Contraseña (Opcional)
+        </label>
+        <input type="text" name="nueva_password" placeholder="Dejar totalmente en blanco para mantener la actual" style="width:100%; margin-top:4px">
+        <div style="margin-top:6px; font-size:11px; color:var(--text-muted)">
+          <i class="fa-solid fa-circle-exclamation"></i> Rellenar únicamente si el trabajador solicita un blanqueo de credenciales por olvido.
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:28px">
+        <button type="submit" class="btn-primary" style="flex:1">
+          <i class="fa-solid fa-rotate"></i> Actualizar Cambios
+        </button>
+        <a href="{{ url_for('listar_trabajadores') }}" class="btn-secondary" style="padding:12px 16px; text-decoration:none; text-align:center">
+          Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

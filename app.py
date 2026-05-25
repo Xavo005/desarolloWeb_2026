@@ -904,7 +904,162 @@ def exportar_historial_csv():
     except Exception as e:
         return "<p>Excepción: " + repr(e) + "</p>", 500
 
+# ════════════════════════════════════════════════════════════
+# CONTROL DE ACCESO Y PERFILES (DECORADOR)
+# ════════════════════════════════════════════════════════════
+def requiere_rol(roles_permitidos):
+    def decorador(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if 'codigo_empleado' not in session:
+                return redirect(url_for('index'))
+            if session.get('rol') not in roles_permitidos:
+                return "<p>Acceso Denegado: No tienes permisos para realizar esta acción.</p>", 403
+            return f(*args, **kwargs)
+        return wrapper
+    return decorador
 
+# ════════════════════════════════════════════════════════════
+# MÓDULO: GESTIÓN DE TRABAJADORES Y PERFILES
+# ════════════════════════════════════════════════════════════
+
+# 1. Listar trabajadores activos
+@app.route('/trabajadores')
+@requiere_rol(['gerente', 'tecnico'])
+def listar_trabajadores():
+    conn = obtenerconexion()
+    trabajadores = []
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Filtramos para mostrar únicamente a los usuarios con activo = 1
+                    sql =  " SELECT `id`, `codigo_empleado`, `nombre`, `email`, `rol`, `sede`, `activo` "
+                    sql += "   FROM `usuarios` "
+                    sql += "  WHERE `activo` = 1 "
+                    sql += "  ORDER BY `nombre` ASC "
+                    cursor.execute(sql)
+                    trabajadores = cursor.fetchall()
+        except Exception as e:
+            return f"<h3>Error SQL al listar personal:</h3><p>{repr(e)}</p><a href='/dashboard'>Volver al Inicio</a>"
+            
+    return render_template('lista_trabajadores.html',
+                           active_page='trabajadores',
+                           alertas_count=contar_alertas(),
+                           trabajadores=trabajadores)
+
+# 2. Vista: Formulario de Agregar
+@app.route('/trabajadores/agregar')
+@requiere_rol(['gerente', 'tecnico'])
+def vista_agregar_trabajador():
+    return render_template('trabajador.html',
+                           active_page='trabajadores',
+                           alertas_count=contar_alertas())
+
+# 3. Acción: Insertar nuevo trabajador
+@app.route('/trabajadores/insertar', methods=['POST'])
+@requiere_rol(['gerente', 'tecnico'])
+def insertar_trabajador():
+    nombre        = request.form['nombre'].strip()
+    codigo        = request.form['codigo_empleado'].strip()
+    email         = request.form.get('email', '').strip()
+    rol           = request.form['rol'].strip()
+    sede          = request.form.get('sede', '').strip()
+    palabra_clave = request.form.get('palabra_clave', '').strip().lower()
+    
+    clave_defecto = "Tottus2026"
+    hash_password = generate_password_hash(clave_defecto)
+
+    conn = obtenerconexion()
+    if conn:
+        with conn:
+            with conn.cursor() as cursor:
+                sql = """
+                    INSERT INTO `usuarios` 
+                    (`codigo_empleado`, `nombre`, `email`, `password_hash`, `rol`, `sede`, `activo`, `palabra_clave`)
+                    VALUES (%s, %s, %s, %s, %s, %s, 1, %s)
+                """
+                cursor.execute(sql, (codigo, nombre, email, hash_password, rol, sede, palabra_clave))
+            conn.commit()
+            
+    return redirect(url_for('listar_trabajadores'))
+
+# 4. Vista: Formulario de Editar
+@app.route('/trabajadores/editar/<int:id>')
+@requiere_rol(['gerente', 'tecnico'])
+def vista_editar_trabajador(id):
+    conn = obtenerconexion()
+    trabajador = None
+    if conn:
+        with conn:
+            with conn.cursor() as cursor:
+                sql =  " SELECT `id`, `nombre`, `codigo_empleado`, `email`, `rol`, `sede`, `palabra_clave` "
+                sql += "   FROM `usuarios` "
+                sql += "  WHERE `id` = %s "
+                cursor.execute(sql, (id,))
+                trabajador = cursor.fetchone()
+            
+    if not trabajador:
+        return "Trabajador no encontrado en el sistema", 404
+
+    return render_template('trabajador_edit.html',
+                           active_page='trabajadores',
+                           alertas_count=contar_alertas(),
+                           trabajador=trabajador)
+
+# 5. Acción: Actualizar datos y credenciales opcionales
+@app.route('/trabajadores/actualizar', methods=['POST'])
+@requiere_rol(['gerente', 'tecnico'])
+def actualizar_trabajador():
+    id_usuario    = request.form['id']
+    nombre        = request.form['nombre'].strip()
+    codigo        = request.form['codigo_empleado'].strip()
+    email         = request.form.get('email', '').strip()
+    rol           = request.form['rol'].strip()
+    sede          = request.form.get('sede', '').strip()
+    palabra_clave = request.form.get('palabra_clave', '').strip().lower()
+    nueva_pass    = request.form.get('nueva_password', '').strip()
+
+    conn = obtenerconexion()
+    if conn:
+        with conn:
+            with conn.cursor() as cursor:
+                if nueva_pass != "":
+                    hash_password = generate_password_hash(nueva_pass)
+                    sql = """
+                        UPDATE `usuarios` 
+                        SET `nombre` = %s, `codigo_empleado` = %s, `email` = %s, `rol` = %s, `sede` = %s, `palabra_clave` = %s, `password_hash` = %s 
+                        WHERE `id` = %s
+                    """
+                    cursor.execute(sql, (nombre, codigo, email, rol, sede, palabra_clave, hash_password, id_usuario))
+                else:
+                    sql = """
+                        UPDATE `usuarios` 
+                        SET `nombre` = %s, `codigo_empleado` = %s, `email` = %s, `rol` = %s, `sede` = %s, `palabra_clave` = %s 
+                        WHERE `id` = %s
+                    """
+                    cursor.execute(sql, (nombre, codigo, email, rol, sede, palabra_clave, id_usuario))
+            conn.commit()
+            
+    return redirect(url_for('listar_trabajadores'))
+
+# 6. Acción: Eliminar trabajador (Borrado Lógico)
+@app.route('/trabajadores/eliminar/<int:id>')
+@requiere_rol(['gerente', 'tecnico'])
+def eliminar_trabajador(id):
+    conn = obtenerconexion()
+    if conn:
+        try:
+            with conn:
+                with conn.cursor() as cursor:
+                    # En lugar de DELETE, hacemos un UPDATE del campo activo
+                    sql = " UPDATE `usuarios` SET `activo` = 0 WHERE `id` = %s "
+                    cursor.execute(sql, (id,))
+                conn.commit()
+        except Exception as e:
+            return f"<h3>Error SQL al desactivar trabajador:</h3><p>{repr(e)}</p><a href='/trabajadores'>Volver al listado</a>"
+            
+    return redirect(url_for('listar_trabajadores'))
 
 # ════════════════════════════════════════════════════════════
 if __name__ == '__main__':

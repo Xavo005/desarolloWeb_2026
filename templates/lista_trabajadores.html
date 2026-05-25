@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}Gestión de Trabajadores{% endblock %}
+{% block page_title %}Trabajadores{% endblock %}
+
+{% block content %}
+<div class="px-4" style="max-width:1000px; margin:0 auto; padding-top:24px">
+  
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
+    <h2 style="font-size:20px; font-weight:700; color:var(--text)">Personal Registrado</h2>
+    
+    {% if session.rol in ['gerente', 'tecnico'] %}
+      <a href="{{ url_for('vista_agregar_trabajador') }}" class="btn-primary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px">
+        <i class="fa-solid fa-user-plus"></i> Registrar Trabajador
+      </a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="padding:0; overflow-x:auto">
+    <table style="width:100%; border-collapse:collapse; font-size:14px; text-align:left">
+      <thead>
+        <tr style="background:var(--bg); border-bottom:1px solid var(--border)">
+          <th style="padding:16px 20px; color:var(--text-muted); font-weight:600">Código</th>
+          <th style="padding:16px 20px; color:var(--text-muted); font-weight:600">Nombre Completo</th>
+          <th style="padding:16px 20px; color:var(--text-muted); font-weight:600">Correo</th>
+          <th style="padding:16px 20px; color:var(--text-muted); font-weight:600">Sede</th>
+          <th style="padding:16px 20px; color:var(--text-muted); font-weight:600">Rol / Perfil</th>
+          <th style="padding:16px 20px; color:var(--text-muted); font-weight:600; text-align:center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in trabajadores %}
+        <tr style="border-bottom:1px solid var(--bg)">
+          <td style="padding:16px 20px">
+            <span class="badge badge-green">{{ t.codigo_empleado }}</span>
+          </td>
+          <td style="padding:16px 20px; font-weight:500; color:var(--text)">{{ t.nombre }}</td>
+          <td style="padding:16px 20px; color:var(--text-muted)">{{ t.email if t.email else '-' }}</td>
+          <td style="padding:16px 20px; color:var(--text)">{{ t.sede if t.sede else '-' }}</td>
+          <td style="padding:16px 20px; text-transform:capitalize">
+            <span class="badge {% if t.rol|lower == 'tecnico' %}badge-amber{% elif t.rol|lower == 'gerente' %}badge-blue{% else %}badge-green{% endif %}">
+              {{ t.rol if t.rol else 'Sin Rol' }}
+            </span>
+          </td>
+          <td style="padding:16px 20px; text-align:center">
+            <div style="display:flex; gap:12px; justify-content:center">
+              
+              <a href="{{ url_for('vista_editar_trabajador', id=t.id) }}" style="color:var(--primary); font-size:16px" title="Editar datos y perfil">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </a>
+              
+              {% if session.rol in ['gerente', 'tecnico'] %}
+                <a href="{{ url_for('eliminar_trabajador', id=t.id) }}" style="color:var(--danger); font-size:16px" title="Eliminar" onclick="return confirm('¿Seguro que deseas eliminar a este trabajador?');">
+                  <i class="fa-solid fa-trash-can"></i>
+                </a>
+              {% endif %}
+              
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
