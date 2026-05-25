@@ -34,9 +34,9 @@ def requiere_rol(roles_permitidos):
 @app.context_processor
 def inject_session():
     return dict(session={
-        'nombre': 'Administrador Sistema',
-        'rol': 'gerente',
-        'codigo_empleado': 'ADMIN-001'
+        'nombre': session.get('nombre', 'Invitado'),
+        'rol': session.get('rol', 'Usuario'),
+        'codigo': session.get('codigo_empleado', '')
     })
 
 # ── Configuración BD ─────────────────────────────────────────
