@@ -104,6 +104,57 @@ def login():
 def logout():
     return render_template('login.html', error=None)
 
+# 1. Ruta para mostrar la pantalla de recuperación
+@app.route('/restablecer')
+def restablecer():
+    return render_template('restablecer.html', error=None)
+
+# 2. Ruta que procesa el formulario, valida la palabra clave y cambia la contraseña
+@app.route('/restablecer_contraseña', methods=['POST'])
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        codigo      = request.form['codigo_empleado'].strip()
+        palabra_ing = request.form['palabra_clave'].strip().lower() # Limpiamos y pasamos a minúsculas
+        clave_nueva = request.form['clave_nueva']
+
+        # Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario por su código
+                    cursor.execute("SELECT * FROM usuarios WHERE codigo_empleado=%s AND activo=1", (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe.')
+
+                    # Validamos si la palabra clave coincide
+                    palabra_bd = usuario['palabra_clave'].strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # Si todo está bien, encriptamos la nueva contraseña antes de guardarla
+                    nuevo_hash = generate_password_hash(clave_nueva)
+
+                    # Guardamos los cambios en MySQL
+                    cursor.execute("UPDATE usuarios SET password_hash=%s WHERE id=%s", (nuevo_hash, usuario['id']))
+                
+                conn.commit() 
+                
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        return "<p>Excepción superior: " + repr(e) + "</p>"
+
 # ════════════════════════════════════════════════════════════
 # RUTAS — VISTAS
 # ════════════════════════════════════════════════════════════
