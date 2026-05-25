@@ -4,14 +4,19 @@ app.py — Tottus SGI · Backend Unificado
 import csv
 import io
 from datetime import datetime
-from flask import Flask, render_template, request, Response, session, redirect, url_for
+from flask import Flask, render_template, request, Response, session, redirect, url_for, jsonify
 import pymysql.cursors
-from werkzeug.security import check_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 
 # ¡SI O SI! Agregar una clave secreta para que Flask pueda guardar sesiones
 app.secret_key = 'tottus_sgi_clave_secreta_2026'
+
+def verificar_permiso(roles_permitidos):
+    # Esto consulta la sesión que configuramos antes
+    rol = session.get('rol')
+    return rol in roles_permitidos
 
 @app.context_processor
 def inject_session():
@@ -790,44 +795,46 @@ def api_get_historial():
 # ════════════════════════════════════════════════════════════
 # FASE 3 — Cambio de contraseña desde Perfil
 # ════════════════════════════════════════════════════════════
-@app.route('/cambiar_clave', methods=['POST'])
+@app.route('/api/perfil/cambiar-clave', methods=['POST'])
 def api_cambiar_clave():
     try:
-        clave_actual = request.form['clave_actual']
-        clave_nueva  = request.form['clave_nueva']
+        # Recibimos el JSON enviado por el fetch en tu HTML
+        datos = request.get_json()
+        clave_actual = datos.get('clave_actual')
+        clave_nueva = datos.get('clave_nueva')
 
-        # Validaciones backend
-        if not clave_actual or not clave_nueva:
-            return "<p>Error: Ambas claves son requeridas</p>"
+        # Validaciones
         if len(clave_nueva) < 8:
-            return "<p>Error: La nueva clave debe tener al menos 8 caracteres</p>"
+            return jsonify(success=False, message='La nueva clave debe tener al menos 8 caracteres')
         if not any(c.isdigit() for c in clave_nueva):
-            return "<p>Error: La nueva clave debe contener al menos un número</p>"
-        if clave_actual == clave_nueva:
-            return "<p>Error: La nueva clave debe ser diferente a la actual</p>"
+            return jsonify(success=False, message='La nueva clave debe contener al menos un número')
 
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("SELECT password_hash FROM usuarios WHERE id=%s AND activo=1", (1,))
+                    # Usamos el ID del usuario en sesión, NO '1'
+                    usuario_id = session.get('codigo_empleado') 
+                    cursor.execute("SELECT password_hash FROM usuarios WHERE codigo_empleado=%s", (usuario_id,))
                     usuario = cursor.fetchone()
 
                     if not usuario:
-                        return "<p>Error: Usuario no encontrado</p>"
+                        return jsonify(success=False, message='Usuario no encontrado')
 
-                    # Verificar clave actual
-                    if not (usuario['password_hash'] == clave_actual):
-                        return "<p>Error: La contraseña actual es incorrecta</p>"
+                    # ¡IMPORTANTE! check_password_hash compara el texto plano con el hash
+                    if not check_password_hash(usuario['password_hash'], clave_actual):
+                        return jsonify(success=False, message='La contraseña actual es incorrecta')
 
-                    # Guardar nueva clave
-                    cursor.execute("UPDATE usuarios SET password_hash=%s WHERE id=%s",
-                                   (clave_nueva, 1))
+                    # Encriptamos la nueva y actualizamos
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    cursor.execute("UPDATE usuarios SET password_hash=%s WHERE codigo_empleado=%s", 
+                                   (nuevo_hash, usuario_id))
                 conn.commit()
-            return render_template('exito.html')
-        return "<p>Error de conexión</p>"
+            return jsonify(success=True)
+            
+        return jsonify(success=False, message='Error de conexión')
     except Exception as e:
-        return "<p>Excepción superior: " + repr(e) + "</p>"
+        return jsonify(success=False, message=str(e))
 
 
 # ════════════════════════════════════════════════════════════
@@ -885,6 +892,7 @@ def exportar_historial_csv():
         )
     except Exception as e:
         return "<p>Excepción: " + repr(e) + "</p>", 500
+
 
 
 # ════════════════════════════════════════════════════════════
