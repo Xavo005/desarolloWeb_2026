@@ -30,6 +30,7 @@ CREATE TABLE usuarios (
     activo          TINYINT(1)   DEFAULT 1,
     ultimo_login    DATETIME,
     created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP
+    palabra_clave VARCHAR(100) NULL
 ) ENGINE=InnoDB;
 
 -- Usuario admin se crea con crear_admin.py (werkzeug hash)
