@@ -7,6 +7,7 @@ from datetime import datetime
 from flask import Flask, render_template, request, Response, session, redirect, url_for, jsonify
 import pymysql.cursors
 from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 
 app = Flask(__name__)
 
@@ -17,6 +18,16 @@ def verificar_permiso(roles_permitidos):
     # Esto consulta la sesión que configuramos antes
     rol = session.get('rol')
     return rol in roles_permitidos
+
+def requiere_rol(roles_permitidos):
+    def decorador(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if session.get('rol') not in roles_permitidos:
+                return "Acceso denegado: No tienes permisos suficientes.", 403
+            return f(*args, **kwargs)
+        return wrapper
+    return decorador
 
 @app.context_processor
 def inject_session():
