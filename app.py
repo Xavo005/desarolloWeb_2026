@@ -4,11 +4,14 @@ app.py — Tottus SGI · Backend Unificado
 import csv
 import io
 from datetime import datetime
-from flask import Flask, render_template, request, Response
+from flask import Flask, render_template, request, Response, session, redirect, url_for
 import pymysql.cursors
 from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
+
+# ¡SI O SI! Agregar una clave secreta para que Flask pueda guardar sesiones
+app.secret_key = 'tottus_sgi_clave_secreta_2026'
 
 @app.context_processor
 def inject_session():
@@ -73,36 +76,34 @@ def login():
             clave  = request.form['password']
 
             conn = obtenerconexion()
-            usuario = None
+            usuario_db = None
             if conn:
                 with conn:
                     with conn.cursor() as cursor:
-                        # 1. Buscamos SOLO por el código de empleado
-                        cursor.execute(
-                            "SELECT * FROM usuarios WHERE codigo_empleado=%s AND activo=1",
-                            (codigo,)
-                        )
+                        sql =  " SELECT * FROM usuarios "
+                        sql += "  WHERE codigo_empleado=%s AND activo=1 "
+                        cursor.execute(sql, (codigo,))
                         usuario_db = cursor.fetchone()
 
-                # 2. Si el usuario existe, verificamos que la clave coincida con el hash
+                # Si la clave es correcta, guardamos sus datos en la sesión global
                 if usuario_db and check_password_hash(usuario_db['password_hash'], clave):
-                    usuario = usuario_db # Inicio de sesión exitoso
+                    session['codigo_empleado'] = usuario_db['codigo_empleado']
+                    session['nombre'] = usuario_db['nombre']
+                    session['rol'] = usuario_db['rol']
+                    
+                    # Redireccionamos al dashboard con la sesión iniciada
+                    return redirect(url_for('dashboard'))
                 else:
                     error = 'Código o contraseña incorrectos.'
 
-            if usuario:
-                return render_template('dashboard.html',
-                                       active_page='dashboard',
-                                       alertas_count=contar_alertas(),
-                                       stats={'alertas_criticas': 0, 'total_productos': 0},
-                                       alertas_recientes=[])
         return render_template('login.html', error=error)
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
 
 @app.route('/logout')
 def logout():
-    return render_template('login.html', error=None)
+    session.clear() # Borra los datos del usuario conectado
+    return redirect(url_for('index'))
 
 # 1. Ruta para mostrar la pantalla de recuperación
 @app.route('/restablecer')
@@ -247,15 +248,34 @@ def historial():
                            alertas_count=contar_alertas(),
                            registros=registros)
 
+# 1. El menú lateral ahora mostrará al usuario real conectado
+@app.context_processor
+def inject_session():
+    return dict(session={
+        'nombre': session.get('nombre', 'Invitado'),
+        'rol': session.get('rol', 'Usuario'),
+        'codigo': session.get('codigo_empleado', '')
+    })
+
+# 2. La ruta de Perfil buscará dinámicamente en MySQL usando el código de la sesión
 @app.route('/perfil')
 def perfil():
+    # Si intentan entrar al perfil sin loguearse, los manda al login
+    if 'codigo_empleado' not in session:
+        return redirect(url_for('index'))
+
     usuario = None
     conn = obtenerconexion()
     if conn:
         try:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("SELECT * FROM usuarios LIMIT 1")
+                    # Buscamos usando el código guardado en la sesión (Estilo del profe)
+                    sql =  " SELECT * "
+                    sql += "   FROM `usuarios` "
+                    sql += "  WHERE `codigo_empleado` = %s "
+                    sql += "    AND `activo` = 1 "
+                    cursor.execute(sql, (session['codigo_empleado'],))
                     usuario = cursor.fetchone()
         except Exception:
             pass
