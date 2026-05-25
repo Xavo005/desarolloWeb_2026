@@ -2,6 +2,16 @@
 {% block title %}Dashboard{% endblock %}
 {% block page_title %}Dashboard{% endblock %}
 
+{% block extra_css %}
+<style>
+  @media (min-width: 768px) {
+    .chart-grid {
+      grid-template-columns: 1fr 1fr !important;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="px-4" style="max-width:1100px;margin:0 auto;padding-top:24px">
 
@@ -63,6 +73,29 @@
     </a>
   </div>
 
+  <!-- Análisis de Inventario -->
+  <div style="font-size:16px;font-weight:600;margin-bottom:12px">Análisis de Inventario</div>
+  <div class="chart-grid mb-4" style="display:grid;grid-template-columns:1fr;gap:16px;margin-bottom:24px">
+    <div class="card" style="padding:16px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <i class="fa-solid fa-chart-pie" style="color:var(--primary)"></i>
+        <span>Stock por Categoría</span>
+      </div>
+      <div style="position:relative;height:240px;width:100%">
+        <canvas id="chartStockCat"></canvas>
+      </div>
+    </div>
+    <div class="card" style="padding:16px">
+      <div style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+        <i class="fa-solid fa-chart-line" style="color:var(--primary)"></i>
+        <span>Tendencia de Ajustes (7 días)</span>
+      </div>
+      <div style="position:relative;height:240px;width:100%">
+        <canvas id="chartTendencias"></canvas>
+      </div>
+    </div>
+  </div>
+
   <!-- Alertas Recientes -->
   {% if alertas_count > 0 %}
   <div style="background:var(--warning-light);border-left:4px solid var(--warning);border-radius:12px;padding:16px;display:flex;align-items:center;gap:12px;margin-bottom:24px">
@@ -96,6 +129,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
   (function() {
     const el = document.getElementById('fecha-hora');
@@ -105,6 +139,106 @@
         + ' · ' + now.toLocaleTimeString('es-PE', {hour:'2-digit',minute:'2-digit'});
     }
     tick(); setInterval(tick, 60000);
+
+    // Cargar datos de gráficos
+    fetch('/api/dashboard/graficos')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) return;
+        
+        // Rellenar Ajustes Hoy
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayObj = data.tendencia_ajustes.find(item => item.dia === todayStr);
+        document.getElementById('stat-pendientes').textContent = todayObj ? todayObj.total : 0;
+        
+        // 1. Gráfico: Stock por Categoría (Doughnut)
+        const catLabels = data.stock_por_categoria.map(item => item.categoria);
+        const catValues = data.stock_por_categoria.map(item => item.total_stock);
+        
+        const ctxStock = document.getElementById('chartStockCat').getContext('2d');
+        new Chart(ctxStock, {
+          type: 'doughnut',
+          data: {
+            labels: catLabels,
+            datasets: [{
+              data: catValues,
+              backgroundColor: [
+                '#00A34D', // Primary green
+                '#FFB300', // Warning amber
+                '#2196F3', // Info blue
+                '#9C27B0', // Purple
+                '#E91E63', // Pink
+                '#00BCD4', // Cyan
+                '#FF5722'  // Deep orange
+              ],
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'right',
+                labels: {
+                  boxWidth: 12,
+                  font: { size: 11, family: "'Inter', sans-serif" }
+                }
+              }
+            }
+          }
+        });
+        
+        // 2. Gráfico: Tendencia de Ajustes (Line)
+        const trendLabels = data.tendencia_ajustes.map(item => {
+          const parts = item.dia.split('-');
+          return parts[2] + '/' + parts[1];
+        });
+        const trendValues = data.tendencia_ajustes.map(item => item.total);
+        
+        const ctxTrend = document.getElementById('chartTendencias').getContext('2d');
+        new Chart(ctxTrend, {
+          type: 'line',
+          data: {
+            labels: trendLabels,
+            datasets: [{
+              label: 'Ajustes',
+              data: trendValues,
+              borderColor: '#00A34D',
+              backgroundColor: 'rgba(0, 163, 77, 0.1)',
+              fill: true,
+              tension: 0.3,
+              borderWidth: 2,
+              pointRadius: 4,
+              pointBackgroundColor: '#00A34D'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  stepSize: 1,
+                  font: { size: 10, family: "'Inter', sans-serif" }
+                },
+                grid: { color: '#E0E0E0' }
+              },
+              x: {
+                grid: { display: false },
+                ticks: {
+                  font: { size: 10, family: "'Inter', sans-serif" }
+                }
+              }
+            }
+          }
+        });
+      })
+      .catch(err => console.error('Error cargando gráficos:', err));
   })();
 </script>
 {% endblock %}
