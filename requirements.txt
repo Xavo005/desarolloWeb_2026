@@ -2,3 +2,7 @@ flask>=3.0
 pymysql>=1.1
 python-dotenv>=1.0
 werkzeug>=3.0
+
+#py -3 -m venv .venv
+#.venv\Scripts\activate
+#pip install -r requirements.txt

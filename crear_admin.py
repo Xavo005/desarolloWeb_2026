@@ -6,7 +6,7 @@ Crea el usuario admin con contraseña hasheada correctamente.
 Uso:  python crear_admin.py
 """
 import os
-import mysql.connector
+import pymysql  # <-- Cambio 1: Importamos pymysql
 from werkzeug.security import generate_password_hash
 from dotenv import load_dotenv
 
@@ -18,11 +18,12 @@ ADMIN = {
     'email':           'admin@tottus.com.pe',
     'password':        'tottus2026',
     'rol':             'gerente',
-    'sede':            'Chiclayo - Mall Aventura',
+    'sede':            'Chiclayo - Open Plaza',
 }
 
 def main():
-    conn = mysql.connector.connect(
+    # <-- Cambio 2: Usamos pymysql.connect en lugar de mysql.connector.connect
+    conn = pymysql.connect(
         host=os.getenv('DB_HOST', 'localhost'),
         database=os.getenv('DB_NAME', 'tottus_sgi'),
         user=os.getenv('DB_USER', 'root'),

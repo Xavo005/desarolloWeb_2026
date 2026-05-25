@@ -6,6 +6,7 @@ import io
 from datetime import datetime
 from flask import Flask, render_template, request, Response
 import pymysql.cursors
+from werkzeug.security import check_password_hash
 
 app = Flask(__name__)
 
@@ -76,20 +77,25 @@ def login():
             if conn:
                 with conn:
                     with conn.cursor() as cursor:
+                        # 1. Buscamos SOLO por el código de empleado
                         cursor.execute(
-                            "SELECT * FROM usuarios WHERE codigo_empleado=%s AND password_hash=%s AND activo=1",
-                            (codigo, clave)
+                            "SELECT * FROM usuarios WHERE codigo_empleado=%s AND activo=1",
+                            (codigo,)
                         )
-                        usuario = cursor.fetchone()
+                        usuario_db = cursor.fetchone()
 
-                if usuario:
-                    return render_template('dashboard.html',
-                                           active_page='dashboard',
-                                           alertas_count=contar_alertas(),
-                                           stats={'alertas_criticas': 0, 'total_productos': 0},
-                                           alertas_recientes=[])
+                # 2. Si el usuario existe, verificamos que la clave coincida con el hash
+                if usuario_db and check_password_hash(usuario_db['password_hash'], clave):
+                    usuario = usuario_db # Inicio de sesión exitoso
                 else:
                     error = 'Código o contraseña incorrectos.'
+
+            if usuario:
+                return render_template('dashboard.html',
+                                       active_page='dashboard',
+                                       alertas_count=contar_alertas(),
+                                       stats={'alertas_criticas': 0, 'total_productos': 0},
+                                       alertas_recientes=[])
         return render_template('login.html', error=error)
     except Exception as e:
         return "<p>Excepción superior: " + repr(e) + "</p>"
