@@ -207,6 +207,10 @@ def escanear():
                            active_page='escanear',
                            alertas_count=contar_alertas())
 
+# ════════════════════════════════════════════════════════════
+# UC5 - Xavier Ruiz Guevara GESTIÓN DE PRODUCTOS 
+# ════════════════════════════════════════════════════════════
+
 @app.route('/productos')
 def productos():
     try:
