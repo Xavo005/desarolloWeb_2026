@@ -131,15 +131,23 @@ def restablecer():
 # 2. Ruta que procesa el formulario, valida la palabra clave y cambia la contraseña
 @app.route('/restablecer_contraseña', methods=['POST'])
 def restablecer_contraseña():
-    # pyrefly: ignore [missing-import]
     from werkzeug.security import generate_password_hash
 
     try:
-        codigo      = request.form['codigo_empleado'].strip()
-        palabra_ing = request.form['palabra_clave'].strip().lower() # Limpiamos y pasamos a minúsculas
-        clave_nueva = request.form['clave_nueva']
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
 
-        # Validaciones básicas de la nueva contraseña
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
         if len(clave_nueva) < 8:
             return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
         if not any(c.isdigit() for c in clave_nueva):
@@ -149,38 +157,2631 @@ def restablecer_contraseña():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    # Buscamos al usuario por su código (ESTILO DEL PROFE)
-                    sql =  " SELECT * "
-                    sql += "   FROM `usuarios` "
-                    sql += "  WHERE `codigo_empleado` = %s "
-                    sql += "    AND `activo` = 1 "
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
                     cursor.execute(sql, (codigo,))
                     usuario = cursor.fetchone()
 
                     if not usuario:
-                        return render_template('restablecer.html', error='El código de empleado no existe.')
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
 
-                    # Validamos si la palabra clave coincide
-                    palabra_bd = usuario['palabra_clave'].strip().lower()
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
                     if palabra_ing != palabra_bd:
                         return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
 
-                    # Si todo está bien, encriptamos la nueva contraseña antes de guardarla
+                    # 4. Actualizar contraseña
                     nuevo_hash = generate_password_hash(clave_nueva)
-
-                    # Guardamos los cambios en MySQL (ESTILO DEL PROFE)
-                    sql_update =  " UPDATE `usuarios` "
-                    sql_update += "    SET `password_hash` = %s "
-                    sql_update += "  WHERE `id` = %s "
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
                     cursor.execute(sql_update, (nuevo_hash, usuario['id']))
-                
-                conn.commit() 
-                
+                    conn.commit()
+            
             return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
             
         return "<p>Error de conexión con la base de datos.</p>"
     except Exception as e:
-        return "<p>Excepción superior: " + repr(e) + "</p>"
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
+def restablecer_contraseña():
+    from werkzeug.security import generate_password_hash
+
+    try:
+        # Usamos .get() para evitar que el programa se caiga si el campo falta
+        codigo = request.form.get('codigo_empleado')
+        palabra_ing = request.form.get('palabra_clave')
+        clave_nueva = request.form.get('clave_nueva')
+
+        # 1. Validar que todos los campos lleguen al servidor
+        if not codigo or not palabra_ing or not clave_nueva:
+            return render_template('restablecer.html', error='Por favor, completa todos los campos.')
+
+        # Limpieza segura de datos
+        codigo = codigo.strip()
+        palabra_ing = palabra_ing.strip().lower()
+
+        # 2. Validaciones básicas de la nueva contraseña
+        if len(clave_nueva) < 8:
+            return render_template('restablecer.html', error='La nueva clave debe tener al menos 8 caracteres.')
+        if not any(c.isdigit() for c in clave_nueva):
+            return render_template('restablecer.html', error='La nueva clave debe contener al menos un número.')
+
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Buscamos al usuario
+                    sql = "SELECT id, palabra_clave FROM `usuarios` WHERE `codigo_empleado` = %s AND `activo` = 1"
+                    cursor.execute(sql, (codigo,))
+                    usuario = cursor.fetchone()
+
+                    if not usuario:
+                        return render_template('restablecer.html', error='El código de empleado no existe o está inactivo.')
+
+                    # 3. Validar palabra clave (asegurando que exista en la BD)
+                    palabra_bd = (usuario['palabra_clave'] or '').strip().lower()
+                    if palabra_ing != palabra_bd:
+                        return render_template('restablecer.html', error='La palabra clave de seguridad es incorrecta.')
+
+                    # 4. Actualizar contraseña
+                    nuevo_hash = generate_password_hash(clave_nueva)
+                    sql_update = "UPDATE `usuarios` SET `password_hash` = %s WHERE `id` = %s"
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
+                    conn.commit()
+            
+            return render_template('exito.html', mensaje='Tu contraseña ha sido restablecida con éxito.', volver='/')
+            
+        return "<p>Error de conexión con la base de datos.</p>"
+    except Exception as e:
+        # Esto te mostrará el error real en pantalla si algo falla
+        return "<p>Error inesperado: " + str(e) + "</p>"
 
 # ════════════════════════════════════════════════════════════
 # RUTAS — VISTAS
