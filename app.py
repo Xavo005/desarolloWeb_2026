@@ -129,8 +129,12 @@ def restablecer_contraseña():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    # Buscamos al usuario por su código
-                    cursor.execute("SELECT * FROM usuarios WHERE codigo_empleado=%s AND activo=1", (codigo,))
+                    # Buscamos al usuario por su código (ESTILO DEL PROFE)
+                    sql =  " SELECT * "
+                    sql += "   FROM `usuarios` "
+                    sql += "  WHERE `codigo_empleado` = %s "
+                    sql += "    AND `activo` = 1 "
+                    cursor.execute(sql, (codigo,))
                     usuario = cursor.fetchone()
 
                     if not usuario:
@@ -144,8 +148,11 @@ def restablecer_contraseña():
                     # Si todo está bien, encriptamos la nueva contraseña antes de guardarla
                     nuevo_hash = generate_password_hash(clave_nueva)
 
-                    # Guardamos los cambios en MySQL
-                    cursor.execute("UPDATE usuarios SET password_hash=%s WHERE id=%s", (nuevo_hash, usuario['id']))
+                    # Guardamos los cambios en MySQL (ESTILO DEL PROFE)
+                    sql_update =  " UPDATE `usuarios` "
+                    sql_update += "    SET `password_hash` = %s "
+                    sql_update += "  WHERE `id` = %s "
+                    cursor.execute(sql_update, (nuevo_hash, usuario['id']))
                 
                 conn.commit() 
                 
