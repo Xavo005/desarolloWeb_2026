@@ -5,7 +5,7 @@ import csv
 import io
 from datetime import datetime
 from flask import Flask, render_template, request, Response
-import pymysql.cursors
+from bd import obtenerconexion
 
 app = Flask(__name__)
 
@@ -17,19 +17,7 @@ def inject_session():
         'codigo_empleado': 'ADMIN-001'
     })
 
-# ── Configuración BD ─────────────────────────────────────────
-def obtenerconexion():
-    try:
-        connection = pymysql.connect(
-            host='localhost',
-            user='root',
-            password='',
-            database='tottus_sgi',
-            cursorclass=pymysql.cursors.DictCursor
-        )
-        return connection
-    except:
-        raise
+# ── Conexión BD: ver bd.py ───────────────────────────────────
 
 def contar_alertas():
     try:
