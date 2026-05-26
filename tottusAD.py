@@ -14,6 +14,13 @@ from bd import obtenerconexion
 # CLASES DE ENTIDAD
 # ════════════════════════════════════════════════════════════
 
+
+
+
+# ════════════════════════════════════════════════════════════
+# CLASES DE ENTIDAD - PRODUCTO Xavier Ruiz Guevara
+# ════════════════════════════════════════════════════════════
+
 class clsProducto:
     def __init__(self, p_id=None, p_sku=None, p_nombre=None,
                  p_categoria=None, p_stock_total=None,
@@ -28,7 +35,9 @@ class clsProducto:
         self.venta_dia        = p_venta_dia
         self.ubicacion_gondola = p_ubicacion_gondola
 
-
+# ════════════════════════════════════════════════════════════
+# CLASES DE ENTIDAD - USUARIO / TRABAJADOR
+# ════════════════════════════════════════════════════════════
 class clsUsuario:
     def __init__(self, p_id=None, p_codigo_empleado=None,
                  p_nombre=None, p_rol=None,
@@ -72,7 +81,7 @@ def autenticar_usuario(p_codigo, p_password):
 
 
 # ════════════════════════════════════════════════════════════
-# CRUD — PRODUCTOS
+# CRUD — PRODUCTOS - Xavier Ruiz Guevara 
 # ════════════════════════════════════════════════════════════
 
 def leer_productos(p_busqueda=None):

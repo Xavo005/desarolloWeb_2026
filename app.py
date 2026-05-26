@@ -204,7 +204,7 @@ def escanear():
 
 
 # ════════════════════════════════════════════════════════════
-# CRUD — PRODUCTOS
+# CRUD — PRODUCTOS - Xavier Ruiz Guevara
 # ════════════════════════════════════════════════════════════
 @app.route('/productos')
 def productos():
@@ -239,41 +239,34 @@ def editar_producto_vista(prod_id):
 
 @app.route('/guardar_producto', methods=['POST'])
 def guardar_producto():
+    sku    = request.form.get('sku', '').strip().upper()
+    nombre = request.form.get('nombre', '').strip()
+    
+    if not sku or not nombre:
+        return "<h1>Error</h1><p>El SKU y el nombre son obligatorios.</p><a href='/productos'>Volver</a>"
+
     try:
-        sku    = request.form.get('sku', '').strip().upper()
-        nombre = request.form.get('nombre', '').strip()
-        if not sku or not nombre:
-            return mostrar_error("SKU y nombre son obligatorios.")
+        stock  = int(request.form.get('stock_total', 0))
+        precio = float(request.form.get('precio_unitario', 0))
+        venta  = float(request.form.get('venta_dia', 0))
+    except ValueError:
+        return "<h1>Error</h1><p>Los valores numéricos no son válidos.</p><a href='/productos'>Volver</a>"
 
-        try:
-            stock  = int(request.form.get('stock_total', 0))
-            precio = float(request.form.get('precio_unitario', 0))
-            venta  = float(request.form.get('venta_dia', 0))
-        except ValueError:
-            return mostrar_error("Valores numericos invalidos.")
+    obj = clsProducto(
+        p_id=None,
+        p_sku=sku,
+        p_nombre=nombre,
+        p_categoria=request.form.get('categoria', ''),
+        p_stock_total=stock,
+        p_precio_unitario=precio,
+        p_venta_dia=venta,
+        p_ubicacion_gondola=request.form.get('ubicacion_gondola', '')
+    )
 
-        if stock < 0 or precio < 0 or venta < 0:
-            return mostrar_error("El stock, precio y venta diaria no pueden ser negativos.")
-
-        obj = clsProducto(
-            p_id=None,
-            p_sku=sku,
-            p_nombre=nombre,
-            p_categoria=request.form.get('categoria', ''),
-            p_stock_total=stock,
-            p_precio_unitario=precio,
-            p_venta_dia=venta,
-            p_ubicacion_gondola=request.form.get('ubicacion_gondola', '')
-        )
-
-        if insertar_producto(obj):
-            return mostrar_exito(
-                'Producto registrado correctamente en el catalogo.',
-                '/productos', 'Ver catalogo')
-        return mostrar_error("No se pudo registrar. Verifique que el SKU no exista.")
-    except Exception as e:
-        print("Error en /guardar_producto:", repr(e))
-        return mostrar_error("Error interno al registrar el producto.", 500)
+    if insertar_producto(obj):
+        return redirect(url_for('listar_productos'))
+    else:
+        return "<h1>Error</h1><p>No se pudo guardar el producto. Verifique el SKU.</p><a href='/productos'>Volver</a>"
 
 
 @app.route('/actualizar_producto', methods=['POST'])
