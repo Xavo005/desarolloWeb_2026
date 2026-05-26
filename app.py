@@ -20,6 +20,10 @@ from tottusAD import (
     contar_alertas, leer_alertas, eliminar_alerta,
     leer_historial, registrar_historial,
     cambiar_clave,
+    clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
+    insertar_trabajador  as ad_insertar_trabajador,
+    actualizar_trabajador as ad_actualizar_trabajador,
+    eliminar_trabajador  as ad_eliminar_trabajador,
 )
 
 app = Flask(__name__)
@@ -639,6 +643,187 @@ def exportar_historial_csv():
     except Exception as e:
         print("Error en /historial/exportar:", repr(e))
         return mostrar_error("Error al exportar el historial.", 500)
+
+
+# ════════════════════════════════════════════════════════════
+# CRUD — PERSONAL / TRABAJADORES
+# ════════════════════════════════════════════════════════════
+@app.route('/trabajadores')
+def listar_trabajadores():
+    try:
+        lista = leer_trabajadores() or []
+        return render_template('lista_trabajadores.html',
+                               active_page='trabajadores',
+                               alertas_count=contar_alertas(),
+                               trabajadores=lista)
+    except Exception as e:
+        print("Error en /trabajadores:", repr(e))
+        return mostrar_error("Error al cargar el listado de personal.", 500)
+
+
+@app.route('/trabajadores/nuevo')
+def vista_agregar_trabajador():
+    return render_template('trabajador.html',
+                           active_page='trabajadores',
+                           alertas_count=contar_alertas())
+
+
+@app.route('/insertar_trabajador', methods=['POST'])
+def insertar_trabajador():
+    try:
+        nombre           = request.form.get('nombre', '').strip()
+        codigo_empleado  = request.form.get('codigo_empleado', '').strip().upper()
+        email            = request.form.get('email', '').strip()
+        sede             = request.form.get('sede', '').strip()
+        rol              = request.form.get('rol', 'operario').strip()
+        palabra_clave    = request.form.get('palabra_clave', '').strip()
+
+        if not nombre or not codigo_empleado or not sede:
+            return mostrar_error("Nombre, codigo de empleado y sede son obligatorios.")
+
+        obj = clsTrabajador(
+            p_nombre=nombre,
+            p_codigo_empleado=codigo_empleado,
+            p_email=email,
+            p_sede=sede,
+            p_rol=rol,
+            p_palabra_clave=palabra_clave,
+            p_password_hash='Tottus2026'
+        )
+
+        if ad_insertar_trabajador(obj):
+            return mostrar_exito(
+                'Trabajador registrado correctamente. Clave inicial: Tottus2026',
+                '/trabajadores', 'Ver personal')
+        return mostrar_error("No se pudo registrar. El codigo de empleado ya existe.")
+    except Exception as e:
+        print("Error en /insertar_trabajador:", repr(e))
+        return mostrar_error("Error interno al registrar el trabajador.", 500)
+
+
+@app.route('/trabajadores/editar/<int:id>')
+def vista_editar_trabajador(id):
+    try:
+        trabajador = leer_trabajador_por_id(id)
+        if not trabajador:
+            return mostrar_error("Trabajador no encontrado.", 404)
+        return render_template('trabajador_edit.html',
+                               active_page='trabajadores',
+                               alertas_count=contar_alertas(),
+                               trabajador=trabajador)
+    except Exception as e:
+        print("Error en /trabajadores/editar:", repr(e))
+        return mostrar_error("Error al cargar el trabajador para edicion.", 500)
+
+
+@app.route('/actualizar_trabajador', methods=['POST'])
+def actualizar_trabajador():
+    try:
+        trab_id         = int(request.form.get('id', 0))
+        nombre          = request.form.get('nombre', '').strip()
+        codigo_empleado = request.form.get('codigo_empleado', '').strip().upper()
+        email           = request.form.get('email', '').strip()
+        sede            = request.form.get('sede', '').strip()
+        rol             = request.form.get('rol', 'operario').strip()
+        palabra_clave   = request.form.get('palabra_clave', '').strip()
+        nueva_password  = request.form.get('nueva_password', '').strip()
+
+        if not nombre or not codigo_empleado or not sede:
+            return mostrar_error("Nombre, codigo de empleado y sede son obligatorios.")
+
+        obj = clsTrabajador(
+            p_id=trab_id,
+            p_nombre=nombre,
+            p_codigo_empleado=codigo_empleado,
+            p_email=email,
+            p_sede=sede,
+            p_rol=rol,
+            p_palabra_clave=palabra_clave,
+            p_password_hash=nueva_password if nueva_password else None
+        )
+
+        if ad_actualizar_trabajador(obj):
+            return mostrar_exito(
+                'Datos del trabajador actualizados correctamente.',
+                '/trabajadores', 'Ver personal')
+        return mostrar_error("No se pudo actualizar. Verifique que el codigo no este duplicado.")
+    except Exception as e:
+        print("Error en /actualizar_trabajador:", repr(e))
+        return mostrar_error("Error interno al actualizar el trabajador.", 500)
+
+
+@app.route('/eliminar_trabajador/<int:id>')
+def eliminar_trabajador(id):
+    """
+    El template lista_trabajadores.html usa GET con onclick=confirm().
+    Se mantiene GET para compatibilidad con el template existente.
+    """
+    try:
+        if ad_eliminar_trabajador(id):
+            return mostrar_exito(
+                'Trabajador desactivado del sistema correctamente.',
+                '/trabajadores', 'Ver personal')
+        return mostrar_error("Trabajador no encontrado o no se pudo desactivar.")
+    except Exception as e:
+        print("Error en /eliminar_trabajador:", repr(e))
+        return mostrar_error("Error interno al desactivar el trabajador.", 500)
+
+
+# ════════════════════════════════════════════════════════════
+# RUTA — RESTABLECER CONTRASEÑA
+# ════════════════════════════════════════════════════════════
+@app.route('/restablecer', methods=['GET', 'POST'])
+def restablecer():
+    """
+    GET  -> muestra el formulario de recuperacion de acceso.
+    POST -> valida codigo de empleado y cambia la clave en texto plano.
+    El template usa: codigo_empleado, clave_nueva.
+    La palabra_clave del form se usa como clave_actual (mecanismo simple).
+    """
+    if request.method == 'POST':
+        try:
+            codigo    = request.form.get('codigo_empleado', '').strip()
+            clave_sec = request.form.get('palabra_clave', '').strip()
+            clave_nva = request.form.get('clave_nueva', '').strip()
+
+            if not codigo or not clave_nva:
+                return render_template('restablecer.html',
+                                       error='El codigo de empleado y la nueva contraseña son obligatorios.')
+
+            # Buscar el usuario por codigo_empleado para obtener su ID
+            conn = obtenerconexion()
+            usuario_id = None
+            if conn:
+                with conn:
+                    with conn.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT id FROM usuarios WHERE codigo_empleado=%s AND activo=1",
+                            (codigo,)
+                        )
+                        row = cursor.fetchone()
+                        if row:
+                            usuario_id = row['id']
+
+            if not usuario_id:
+                return render_template('restablecer.html',
+                                       error='Codigo de empleado no encontrado.')
+
+            # Cambiar clave: se usa clave_sec como verificacion de identidad
+            # (si el campo esta vacio se omite la verificacion en text plain)
+            if cambiar_clave(usuario_id, clave_sec, clave_nva):
+                return mostrar_exito(
+                    'Contraseña restablecida correctamente.',
+                    '/', 'Ir al Login')
+            else:
+                return render_template('restablecer.html',
+                                       error='No se pudo restablecer. Verifique su palabra clave de seguridad.')
+        except Exception as e:
+            print("Error en /restablecer:", repr(e))
+            return render_template('restablecer.html',
+                                   error='Error interno. Intente de nuevo.')
+
+    return render_template('restablecer.html', error=None)
+
 
 
 # ════════════════════════════════════════════════════════════

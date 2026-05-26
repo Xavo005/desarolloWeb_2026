@@ -21,7 +21,7 @@
       <div class="error-banner"><i class="fa-solid fa-circle-xmark"></i> {{ error }}</div>
     {% endif %}
 
-    <form method="POST" action="{{ url_for('restablecer_contraseña') }}">
+    <form method="POST" action="{{ url_for('restablecer') }}">
       <div class="form-group">
         <label>Código de Empleado</label>
         <input type="text" name="codigo_empleado" placeholder="ADMIN-001" required>
