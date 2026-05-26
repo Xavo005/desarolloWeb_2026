@@ -775,3 +775,201 @@ def cambiar_clave(p_usuario_id, p_clave_actual, p_nueva_clave):
         print(repr(e))
         return False
 
+
+
+# ════════════════════════════════════════════════════════════
+# CLASE DE ENTIDAD — TRABAJADOR
+# ════════════════════════════════════════════════════════════
+
+class clsTrabajador:
+    def __init__(self, p_id=None, p_nombre=None, p_codigo_empleado=None,
+                 p_email=None, p_sede=None, p_rol=None,
+                 p_palabra_clave=None, p_password_hash=None, p_activo=None):
+        self.id               = p_id
+        self.nombre           = p_nombre
+        self.codigo_empleado  = p_codigo_empleado
+        self.email            = p_email
+        self.sede             = p_sede
+        self.rol              = p_rol
+        self.palabra_clave    = p_palabra_clave
+        self.password_hash    = p_password_hash
+        self.activo           = p_activo
+
+
+# ════════════════════════════════════════════════════════════
+# CRUD — TRABAJADORES / PERSONAL
+# ════════════════════════════════════════════════════════════
+
+def leer_trabajadores():
+    """
+    Retorna lista de todos los trabajadores activos ordenados por nombre.
+    """
+    try:
+        conn = obtenerconexion()
+        result = None
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql =  " SELECT id, nombre, codigo_empleado, "
+                    sql += "        email, sede, rol, "
+                    sql += "        palabra_clave, activo "
+                    sql += "   FROM usuarios "
+                    sql += "  WHERE activo = 1 "
+                    sql += "  ORDER BY nombre "
+                    cursor.execute(sql)
+                    result = cursor.fetchall()
+        return result
+    except Exception as e:
+        print(repr(e))
+        return []
+
+
+def leer_trabajador_por_id(p_id):
+    """
+    Retorna un dict con los datos del trabajador o None si no existe.
+    """
+    try:
+        conn = obtenerconexion()
+        result = None
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql =  " SELECT id, nombre, codigo_empleado, "
+                    sql += "        email, sede, rol, "
+                    sql += "        palabra_clave, activo "
+                    sql += "   FROM usuarios "
+                    sql += "  WHERE id = %s "
+                    cursor.execute(sql, (p_id,))
+                    result = cursor.fetchone()
+        return result
+    except Exception as e:
+        print(repr(e))
+        return None
+
+
+def insertar_trabajador(p_trabajador):
+    """
+    Inserta un nuevo trabajador en la tabla usuarios.
+    La contrasena inicial se establece en 'Tottus2026' (texto plano).
+    Retorna True si se inserto, False si el codigo_empleado ya existe o hubo error.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Verificar codigo_empleado duplicado
+                    sql =  " SELECT id FROM usuarios "
+                    sql += "  WHERE codigo_empleado = %s "
+                    cursor.execute(sql, (p_trabajador.codigo_empleado,))
+                    if cursor.fetchone():
+                        return False  # Codigo ya en uso
+
+                    password_inicial = p_trabajador.password_hash or 'Tottus2026'
+
+                    sql  = " INSERT INTO `usuarios` "
+                    sql += "   (`nombre`, `codigo_empleado`, `email`, "
+                    sql += "    `sede`, `rol`, `palabra_clave`, `password_hash`) "
+                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                    cursor.execute(sql, (
+                        p_trabajador.nombre,
+                        p_trabajador.codigo_empleado,
+                        p_trabajador.email or '',
+                        p_trabajador.sede or '',
+                        p_trabajador.rol or 'operario',
+                        p_trabajador.palabra_clave or '',
+                        password_inicial,
+                    ))
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False
+
+
+def actualizar_trabajador(p_trabajador):
+    """
+    Actualiza los datos de un trabajador existente.
+    Si p_trabajador.password_hash no es None ni vacio, tambien actualiza la contrasena.
+    Retorna True si actualizo, False si no lo encontro o hubo error.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Verificar que existe
+                    sql =  " SELECT id FROM usuarios "
+                    sql += "  WHERE id = %s "
+                    cursor.execute(sql, (p_trabajador.id,))
+                    if not cursor.fetchone():
+                        return False
+
+                    # Verificar codigo_empleado no duplicado en otro registro
+                    sql =  " SELECT id FROM usuarios "
+                    sql += "  WHERE codigo_empleado = %s AND id != %s "
+                    cursor.execute(sql, (p_trabajador.codigo_empleado, p_trabajador.id))
+                    if cursor.fetchone():
+                        return False  # Codigo ya en uso por otro usuario
+
+                    # Actualizar campos basicos
+                    sql  = " UPDATE `usuarios` "
+                    sql += "    SET `nombre` = %s, "
+                    sql += "        `codigo_empleado` = %s, "
+                    sql += "        `email` = %s, "
+                    sql += "        `sede` = %s, "
+                    sql += "        `rol` = %s, "
+                    sql += "        `palabra_clave` = %s "
+                    sql += "  WHERE `id` = %s "
+                    cursor.execute(sql, (
+                        p_trabajador.nombre,
+                        p_trabajador.codigo_empleado,
+                        p_trabajador.email or '',
+                        p_trabajador.sede or '',
+                        p_trabajador.rol or 'operario',
+                        p_trabajador.palabra_clave or '',
+                        p_trabajador.id,
+                    ))
+
+                    # Si se proporcionó nueva contrasena, actualizarla
+                    if p_trabajador.password_hash:
+                        sql  = " UPDATE `usuarios` "
+                        sql += "    SET `password_hash` = %s "
+                        sql += "  WHERE `id` = %s "
+                        cursor.execute(sql, (p_trabajador.password_hash, p_trabajador.id))
+
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False
+
+
+def eliminar_trabajador(p_id):
+    """
+    Desactiva (soft-delete) un trabajador estableciendo activo=0.
+    Retorna True si se desactivo, False si no existia o hubo error.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql =  " SELECT id FROM usuarios "
+                    sql += "  WHERE id = %s "
+                    cursor.execute(sql, (p_id,))
+                    if not cursor.fetchone():
+                        return False
+
+                    sql  = " UPDATE `usuarios` "
+                    sql += "    SET `activo` = 0 "
+                    sql += "  WHERE `id` = %s "
+                    cursor.execute(sql, (p_id,))
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False
