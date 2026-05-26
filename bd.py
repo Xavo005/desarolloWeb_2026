@@ -1,4 +1,5 @@
 import pymysql.cursors
+from flask import jsonify
 
 def obtenerconexion():
    try:
@@ -9,3 +10,31 @@ def obtenerconexion():
        return connection
    except:
        raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

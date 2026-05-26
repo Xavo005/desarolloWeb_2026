@@ -26,7 +26,16 @@ from tottusAD import (
     eliminar_trabajador  as ad_eliminar_trabajador,
 )
 
+from flask import Flask
+try:
+    from routes.api_inventario import api_bp
+except ImportError as e:
+    print(f"Error específico de importación: {e}")
+
+
+
 app = Flask(__name__)
+app.register_blueprint(api_bp)
 
 
 # ════════════════════════════════════════════════════════════
