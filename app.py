@@ -7,7 +7,7 @@ import csv
 import io
 import json
 from datetime import datetime
-from flask import Flask, render_template, request, Response
+from flask import Flask, render_template, request, Response, jsonify
 from bd import obtenerconexion
 from tottusAD import (
     autenticar_usuario,
@@ -239,34 +239,48 @@ def editar_producto_vista(prod_id):
 
 @app.route('/guardar_producto', methods=['POST'])
 def guardar_producto():
-    sku    = request.form.get('sku', '').strip().upper()
-    nombre = request.form.get('nombre', '').strip()
-    
-    if not sku or not nombre:
-        return "<h1>Error</h1><p>El SKU y el nombre son obligatorios.</p><a href='/productos'>Volver</a>"
-
     try:
-        stock  = int(request.form.get('stock_total', 0))
-        precio = float(request.form.get('precio_unitario', 0))
-        venta  = float(request.form.get('venta_dia', 0))
-    except ValueError:
-        return "<h1>Error</h1><p>Los valores numéricos no son válidos.</p><a href='/productos'>Volver</a>"
+        sku    = request.form.get('sku', '').strip().upper()
+        nombre = request.form.get('nombre', '').strip()
+        categoria = request.form.get('categoria', '').strip()
+        ubicacion = request.form.get('ubicacion_gondola', '').strip()
+        
+        if not sku or not nombre:
+            return mostrar_error("SKU y nombre son obligatorios.")
 
-    obj = clsProducto(
-        p_id=None,
-        p_sku=sku,
-        p_nombre=nombre,
-        p_categoria=request.form.get('categoria', ''),
-        p_stock_total=stock,
-        p_precio_unitario=precio,
-        p_venta_dia=venta,
-        p_ubicacion_gondola=request.form.get('ubicacion_gondola', '')
-    )
+        try:
+            stock  = int(request.form.get('stock_total', 0))
+            precio = float(request.form.get('precio_unitario', 0))
+            venta  = float(request.form.get('venta_dia', 0))
+        except (ValueError, TypeError):
+            return mostrar_error("Valores numéricos inválidos.")
 
-    if insertar_producto(obj):
-        return redirect(url_for('listar_productos'))
-    else:
-        return "<h1>Error</h1><p>No se pudo guardar el producto. Verifique el SKU.</p><a href='/productos'>Volver</a>"
+        if stock < 0 or precio < 0 or venta < 0:
+            return mostrar_error("El stock, precio y venta diaria no pueden ser negativos.")
+
+        obj = clsProducto(
+            p_id=None,
+            p_sku=sku,
+            p_nombre=nombre,
+            p_categoria=categoria,
+            p_stock_total=stock,
+            p_precio_unitario=precio,
+            p_venta_dia=venta,
+            p_ubicacion_gondola=ubicacion
+        )
+
+        
+        if insertar_producto(obj):
+            return mostrar_exito(
+                'Producto registrado correctamente en el catálogo.',
+                '/productos', 'Ver catálogo')
+        
+        return mostrar_error("No se pudo registrar. Es probable que el SKU ya exista.")
+        
+    except Exception as e:
+        print(f"--- ERROR CRÍTICO EN /guardar_producto ---")
+        print(repr(e)) 
+        return mostrar_error("Error interno al registrar el producto.", 500)
 
 
 @app.route('/actualizar_producto', methods=['POST'])
@@ -319,8 +333,37 @@ def eliminar_producto_ruta(prod_id):
     except Exception as e:
         print("Error en /eliminar_producto:", repr(e))
         return mostrar_error("Error interno al desactivar el producto.", 500)
-
-
+    
+# ════════════════════════════════════════════════════════════
+# API — PRODUCTOS - Xavier Ruiz Guevara
+# ════════════════════════════════════════════════════════════
+@app.route("/api_listar_productos")
+def api_listar_productos():
+    try:
+        resultado = leer_productos()
+        return jsonify(resultado)
+    except:
+        return {}
+    
+@app.route("/api_guardar_producto", methods=['POST'])
+def api_guardar_producto():
+    try:
+        objProducto = clsProducto(
+            None,
+            request.json['sku'],
+            request.json['nombre'],
+            request.json['categoria'],
+            request.json['stock_total'],
+            request.json['precio_unitario'],
+            request.json['venta_dia'],
+            request.json['ubicacion_gondola']
+        )
+        if insertar_producto(objProducto):
+            return jsonify({"code": 1, "message": "Producto insertado correctamente"})
+        return jsonify({"code": 0, "data": {}, "message": "Error al insertar producto"})
+    except Exception as e:
+        return jsonify({"code": -1, "data": {}, "message": repr(e)})
+    
 # ════════════════════════════════════════════════════════════
 # API — ESCANER  (Excepcion aprobada: respuestas JSON)
 # ════════════════════════════════════════════════════════════
