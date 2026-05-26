@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block title %}Error en la solicitud{% endblock %}
+{% block page_title %}Error{% endblock %}
+
+{% block extra_css %}
+<style>
+  .error-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding-top: 60px;
+    padding-bottom: 60px;
+  }
+  .error-card {
+    background: var(--surface);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow);
+    padding: 40px;
+    max-width: 450px;
+    width: 100%;
+    text-align: center;
+    border-top: 4px solid #f59e0b;
+  }
+  .error-icon {
+    font-size: 48px;
+    color: #f59e0b;
+    margin-bottom: 20px;
+  }
+  .error-card h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-main);
+    margin-bottom: 12px;
+  }
+  .error-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 30px;
+    line-height: 1.5;
+  }
+  .btn-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .error-code {
+    display: block;
+    margin-top: 16px;
+    font-family: monospace;
+    color: #999;
+    font-size: 0.8rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="error-wrap">
+  <div class="error-card">
+    <div class="error-icon">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+    </div>
+    <h2>Solicitud no procesada</h2>
+    <p>{{ mensaje | default('Revise los datos enviados e intente nuevamente.') }}</p>
+    <div class="btn-wrap">
+      <a href="/dashboard" class="btn-primary" style="display: block; text-decoration: none; line-height: 20px;">
+        <i class="fa-solid fa-arrow-left"></i> Volver al panel
+      </a>
+    </div>
+    <span class="error-code">Error {{ status | default(400) }}</span>
+  </div>
+</div>
+{% endblock %}
