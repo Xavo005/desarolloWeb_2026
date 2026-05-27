@@ -35,7 +35,6 @@ except ImportError as e:
 
 
 app = Flask(__name__)
-app.register_blueprint(api_bp)
 
 
 # ════════════════════════════════════════════════════════════
