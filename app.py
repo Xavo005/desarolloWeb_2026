@@ -7,7 +7,7 @@ import csv
 import io
 import json
 from datetime import datetime
-from flask import Flask, render_template, request, Response, jsonify
+from flask import Flask, render_template, request, Response, jsonify  # type: ignore[import]
 from bd import obtenerconexion
 from tottusAD import (
     autenticar_usuario,
@@ -455,24 +455,6 @@ def segmentacion():
         print("Error en /segmentacion:", repr(e))
         return mostrar_error("Error al cargar la segmentacion de inventario.", 500)
 
-
-@app.route('/segmentacion/editar/<int:seg_id>')
-def editar_segmentacion_vista(seg_id):
-    try:
-        productos_lista = leer_productos() or []
-        segmentaciones  = leer_segmentaciones() or []
-        edit_seg        = leer_segmentacion_por_id(seg_id)
-        return render_template('segmentacion.html',
-                               active_page='productos',
-                               alertas_count=contar_alertas(),
-                               productos=productos_lista,
-                               segmentaciones=segmentaciones,
-                               edit_seg=edit_seg)
-    except Exception as e:
-        print("Error en /segmentacion/editar:", repr(e))
-        return mostrar_error("Error al cargar la segmentacion para edicion.", 500)
-
-
 @app.route('/guardar_segmentacion', methods=['POST'])
 def guardar_segmentacion():
     try:
@@ -501,6 +483,26 @@ def guardar_segmentacion():
     except Exception as e:
         print("Error en /guardar_segmentacion:", repr(e))
         return mostrar_error("Error interno al registrar la segmentacion.", 500)
+
+
+
+@app.route('/segmentacion/editar/<int:seg_id>')
+def editar_segmentacion_vista(seg_id):
+    try:
+        productos_lista = leer_productos() or []
+        segmentaciones  = leer_segmentaciones() or []
+        edit_seg        = leer_segmentacion_por_id(seg_id)
+        return render_template('segmentacion.html',
+                               active_page='productos',
+                               alertas_count=contar_alertas(),
+                               productos=productos_lista,
+                               segmentaciones=segmentaciones,
+                               edit_seg=edit_seg)
+    except Exception as e:
+        print("Error en /segmentacion/editar:", repr(e))
+        return mostrar_error("Error al cargar la segmentacion para edicion.", 500)
+
+
 
 
 @app.route('/actualizar_segmentacion', methods=['POST'])
@@ -558,6 +560,37 @@ def toggle_segmentacion_ruta(seg_id):
         print("Error en /toggle_segmentacion:", repr(e))
         return mostrar_error("Error interno al cambiar el estado.", 500)
 
+# ════════════════════════════════════════════════════════════
+# AP IS — SEGMENTACIONES Xavier Ruiz Guevara
+# ════════════════════════════════════════════════════════════
+@app.route("/api_listar_segmentaciones")
+def api_listar_segmentaciones():
+    try:
+        resultado = leer_segmentaciones()
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+@app.route("/api_guardar_segmentacion", methods=['POST'])
+def api_guardar_segmentacion():
+    try:
+        obj = clsSegmentacion(
+            p_producto_id=request.json['producto_id'],
+            p_usuario_id=1, # Manteniendo tu lógica fija de usuario
+            p_stock_cliente_final=request.json['stock_cliente_final'],
+            p_stock_revendedor=request.json['stock_revendedor'],
+            p_limite_compra_final=request.json['limite_compra_final'],
+            p_limite_compra_revendedor=request.json['limite_compra_revendedor'],
+            p_motivo=request.json['motivo']
+        )
+        
+        if insertar_segmentacion(obj):
+            return jsonify({"code": 1, "message": "Segmentación registrada correctamente"})
+        
+        return jsonify({"code": 0, "message": "No se pudo registrar. Verifique el stock disponible."})
+        
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)}) 
 
 # ════════════════════════════════════════════════════════════
 # ALERTAS
@@ -859,6 +892,8 @@ def restablecer():
                                    error='Error interno. Intente de nuevo.')
 
     return render_template('restablecer.html', error=None)
+
+
 
 
 
