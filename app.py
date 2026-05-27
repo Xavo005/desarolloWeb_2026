@@ -446,6 +446,90 @@ def api_crear_conteo():
             mimetype='application/json', status=500)
 
 
+
+
+# ════════════════════════════════════════════════════════════
+# API — HISTORIAL CSV  (EDIEGO CALDERON)
+# ════════════════════════════════════════════════════════════
+print("--- CARGANDO RUTA EXPORTAR ---")
+@app.route('/api/historial/exportar', methods=['GET'])
+def api_exportar_historial():
+    try:
+        conn = obtenerconexion()
+        with conn.cursor() as cursor:
+            # CORRECCIÓN: Usamos 'fecha' que es el nombre real de tu columna
+            cursor.execute("SELECT * FROM historial_ajustes ORDER BY fecha DESC")
+            registros = cursor.fetchall()
+        conn.close()
+
+        si = io.StringIO()
+        cw = csv.writer(si)
+        
+        # Encabezados
+        cw.writerow(['ID', 'Producto ID', 'Accion', 'Campo', 'Anterior', 'Nuevo', 'Motivo', 'Fecha'])
+
+        # CORRECCIÓN: Nombres de columnas actualizados según tu tabla
+        for reg in registros:
+            cw.writerow([
+                reg['id'], 
+                reg['producto_id'], 
+                reg['accion'],           # Antes era 'tipo'
+                reg['campo_modificado'], # Antes era 'campo'
+                reg['valor_anterior'], 
+                reg['valor_nuevo'], 
+                reg['motivo'], 
+                reg['fecha']             # Antes era 'fecha_hora'
+            ])
+
+        output = si.getvalue()
+        return Response(
+            output,
+            mimetype='text/csv',
+            headers={"Content-Disposition": "attachment;filename=historial_inventario.csv"}
+        )
+
+    except Exception as e:
+        print("Error en /api/historial/exportar:", repr(e))
+        return Response(
+            json.dumps({'success': False, 'message': str(e)}),
+            mimetype='application/json', status=500
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ════════════════════════════════════════════════════════════
 # CRUD — SEGMENTACIONES
 # ════════════════════════════════════════════════════════════

@@ -1,5 +1,4 @@
 import pymysql.cursors
-from flask import jsonify
 
 def obtenerconexion():
    try:
