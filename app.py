@@ -8,18 +8,18 @@ import io
 import json
 from datetime import datetime
 from flask import Flask, render_template, request, Response
+from markupsafe import escape
 from bd import obtenerconexion
+
 from tottusAD import (
+    obtener_stats_dashboard, obtener_alertas_recientes,
+    leer_historial, registrar_historial,
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
     insertar_producto, actualizar_producto, eliminar_producto,
     buscar_sku,
-    clsSegmentacion, leer_segmentaciones, leer_segmentacion_por_id,
-    insertar_segmentacion, actualizar_segmentacion,
-    eliminar_segmentacion, toggle_segmentacion,
-    contar_alertas, leer_alertas, eliminar_alerta,
-    leer_historial, registrar_historial,
-    cambiar_clave,
+    clsSegmentacion, obtener_segmentaciones, obtener_segmentacion_xID, insertar_segmentacion, actualizar_segmentacion, eliminar_segmentacion, toggle_segmentacion,
+    clsAlerta, obtener_alertas_activas, obtener_totales_alertas, eliminar_alerta, actualizar_alerta,
     clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
     insertar_trabajador  as ad_insertar_trabajador,
     actualizar_trabajador as ad_actualizar_trabajador,
@@ -81,8 +81,8 @@ def login():
                 return render_template('dashboard.html',
                                        active_page='dashboard',
                                        alertas_count=contar_alertas(),
-                                       stats={'alertas_criticas': 0, 'total_productos': 0},
-                                       alertas_recientes=[])
+                                       stats=obtener_stats_dashboard(),
+                                       alertas_recientes=obtener_alertas_recientes())
             else:
                 error = 'Codigo o contrasena incorrectos.'
         return render_template('login.html', error=error)
@@ -101,62 +101,158 @@ def logout():
 # ════════════════════════════════════════════════════════════
 @app.route('/dashboard')
 def dashboard():
-    stats = {'alertas_criticas': 0, 'productos_ok': 0, 'total_productos': 0}
-    alertas_recientes = []
-    conn = obtenerconexion()
-    if conn:
-        try:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT COUNT(*) AS n FROM alertas_quiebre WHERE activo=1 AND nivel='critico'")
-                    stats['alertas_criticas'] = cursor.fetchone()['n']
-                    cursor.execute("SELECT COUNT(*) AS n FROM productos WHERE activo=1")
-                    stats['total_productos'] = cursor.fetchone()['n']
-                    cursor.execute("""
-                        SELECT sku, producto, nivel, horas_restantes
-                        FROM alertas_quiebre WHERE activo=1 ORDER BY horas_restantes ASC LIMIT 3
-                    """)
-                    alertas_recientes = cursor.fetchall()
-        except Exception:
-            pass
-
-    return render_template('dashboard.html',
-                           active_page='dashboard',
-                           alertas_count=contar_alertas(),
-                           stats=stats,
-                           alertas_recientes=alertas_recientes)
-
-
+    try:
+        stats = obtener_stats_dashboard()
+        alertas_recientes = obtener_alertas_recientes()
+        totales = obtener_totales_alertas()
+        alertas_count = totales.get('critico', 0) + totales.get('urgente', 0)
+        
+        return render_template('dashboard.html',
+                               active_page='dashboard',
+                               nombre="Administrador Sistema",
+                               sede="Chiclayo - Open Plaza",
+                               alertas_count=alertas_count,
+                               stats=stats,
+                               alertas_recientes=alertas_recientes)
+    except Exception as e:
+        return render_template('error_500.html'), 500
 # ==============================================================================
 # UC4 - ALERTAS DE QUIEBRE (Gianella)
 # ==============================================================================
-@app.route('/alertas')
-def alertas():
-    lista_alertas = []
-    totales_por_nivel = {'critico': 0, 'urgente': 0, 'ok': 0}
+def contar_alertas():
     try:
-        resultado = leer_alertas()
-        if resultado:
-            lista_alertas = resultado
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
+                    cursor.execute("SELECT COUNT(*) AS n FROM alertas_quiebre WHERE activo=1 AND nivel IN ('critico','urgente')")
+                    row = cursor.fetchone()
+                    return row['n'] if row else 0
+        return 0
+    except:
+        return 0
+    
+def _obtener_datos_alertas(modo='estatico'):
+    if modo == 'dinamico':
+        conn = obtenerconexion()
+        # Traer alertas activas con stock_total y venta_dia estático
+        with conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT a.id, a.producto_id, a.producto, a.sku, a.categoria, 
+                           p.stock_total AS unidades, p.venta_dia, a.estado_transf
+                    FROM alertas_quiebre a
+                    JOIN productos p ON a.producto_id = p.id
+                    WHERE a.activo = 1
+                """)
+                alertas_raw = cursor.fetchall()
+                
+                lista_alertas = []
+                total_critico = 0
+                total_urgente = 0
+                total_ok = 0
+                
+                for a in alertas_raw:
+                    pred = calcular_prediccion_dinamica(
+                        conn, 
+                        a['producto_id'], 
+                        a['unidades'], 
+                        a['venta_dia']
+                    )
+                    
+                    item = {
+                        'id': a['id'],
+                        'producto_id': a['producto_id'],
+                        'producto': a['producto'],
+                        'sku': a['sku'],
+                        'categoria': a['categoria'],
+                        'unidades': a['unidades'],
+                        'venta_dia': pred['venta_dia_real'],
+                        'horas_restantes': pred['horas_restantes_real'],
+                        'nivel': pred['nivel_real'],
+                        'estado_transf': a['estado_transf']
+                    }
+                    
+                    if item['nivel'] == 'critico': total_critico += 1
+                    elif item['nivel'] == 'urgente': total_urgente += 1
+                    else: total_ok += 1
+                    
+                    lista_alertas.append(item)
+                
+                # Ordenar por horas restantes
+                lista_alertas.sort(key=lambda x: x['horas_restantes'])
+                
+                totales = {
+                    'critico': total_critico,
+                    'urgente': total_urgente,
+                    'ok': total_ok
+                }
+    else:
+        lista_alertas = obtener_alertas_activas()
+        totales = obtener_totales_alertas()
+
+    alertas_count = totales.get('critico', 0) + totales.get('urgente', 0)
+    
+    return {
+        'alertas': lista_alertas,
+        'totales': totales,
+        'alertas_count': alertas_count,
+        'modo': modo,
+        'active_page': 'alertas'
+    }
+
+@app.route('/alertas')
+def alertas():
+    try:
+        modo = request.args.get('modo', 'estatico')
+        datos = _obtener_datos_alertas(modo)
+        return render_template('alertas.html', **datos)
+    except Exception as e:
+        return render_template('error_500.html'), 500
+
+@app.route('/alertas/actualizar', methods=['POST'])
+def actualizar_alerta_tradicional():
+    try:
+        alerta_id = int(request.form['id'])
+        unidades = int(request.form['unidades'])
+        venta_dia = float(request.form['venta_dia'])
+        estado_transf = request.form['estado_transf'].strip()
+        
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Actualizar la alerta
                     cursor.execute("""
-                        SELECT nivel, COUNT(*) AS n FROM alertas_quiebre
-                        WHERE activo=1 GROUP BY nivel
-                    """)
-                    for fila in cursor.fetchall():
-                        totales_por_nivel[fila['nivel']] = fila['n']
-    except Exception:
-        pass
+                        UPDATE alertas_quiebre 
+                        SET unidades=%s, venta_dia=%s, estado_transf=%s, updated_at=NOW()
+                        WHERE id=%s
+                    """, (unidades, venta_dia, estado_transf, alerta_id))
+                    
+                    # Opcionalmente registrar en historial (según lógica previa)
+                    cursor.execute("SELECT producto_id FROM alertas_quiebre WHERE id=%s", (alerta_id,))
+                    row = cursor.fetchone()
+                    if row and row['producto_id']:
+                        registrar_historial(row['producto_id'], 'UPDATE', 'alert_edit', 
+                                            None, None, f'Edición tradicional de alerta {alerta_id}')
+                conn.commit()
+        
+        # Volver a renderizar la página de alertas (sin redirect)
+        datos = _obtener_datos_alertas()
+        return render_template('alertas.html', **datos)
+    except Exception as e:
+        return render_template('error_500.html'), 500
 
-    return render_template('alertas.html',
-                           active_page='alertas',
-                           alertas_count=contar_alertas(),
-                           alertas=lista_alertas,
-                           totales=totales_por_nivel)
-
+@app.route('/eliminar_alerta/<int:alerta_id>')
+def eliminar_alerta_ruta(alerta_id):
+    try:
+        if eliminar_alerta(alerta_id):
+            datos = _obtener_datos_alertas()
+            return render_template('alertas.html', **datos)
+        else:
+            return render_template('error_500.html'), 500
+    except Exception as e:
+        return render_template('error_500.html'), 500
 
 # ==============================================================================
 # HISTORIAL
@@ -397,150 +493,270 @@ def api_crear_conteo():
 # ════════════════════════════════════════════════════════════
 # CRUD — SEGMENTACIONES
 # ════════════════════════════════════════════════════════════
+def _obtener_datos_segmentacion():
+    segmentaciones = obtener_segmentaciones()
+    conn = obtenerconexion()
+    productos = []
+    if conn:
+        with conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM productos WHERE activo=1 ORDER BY nombre")
+                productos = cursor.fetchall()
+    totales = obtener_totales_alertas()
+    alertas_count = totales.get('critico', 0) + totales.get('urgente', 0)
+    return {
+        'segmentaciones': segmentaciones,
+        'productos': productos,
+        'alertas_count': alertas_count,
+        'active_page': 'productos'
+    }
+
 @app.route('/segmentacion')
 def segmentacion():
     try:
-        productos_lista = leer_productos() or []
-        segmentaciones  = leer_segmentaciones() or []
-        return render_template('segmentacion.html',
-                               active_page='productos',
-                               alertas_count=contar_alertas(),
-                               productos=productos_lista,
-                               segmentaciones=segmentaciones,
-                               edit_seg=None)
+        datos = _obtener_datos_segmentacion()
+        return render_template('segmentacion.html', edit_seg=None, **datos)
     except Exception as e:
-        print("Error en /segmentacion:", repr(e))
-        return mostrar_error("Error al cargar la segmentacion de inventario.", 500)
-
+        return render_template('error_500.html'), 500
 
 @app.route('/segmentacion/editar/<int:seg_id>')
 def editar_segmentacion_vista(seg_id):
     try:
-        productos_lista = leer_productos() or []
-        segmentaciones  = leer_segmentaciones() or []
-        edit_seg        = leer_segmentacion_por_id(seg_id)
-        return render_template('segmentacion.html',
-                               active_page='productos',
-                               alertas_count=contar_alertas(),
-                               productos=productos_lista,
-                               segmentaciones=segmentaciones,
-                               edit_seg=edit_seg)
+        edit_seg = obtener_segmentacion_xID(seg_id)
+        datos = _obtener_datos_segmentacion()
+        return render_template('segmentacion.html', edit_seg=edit_seg, **datos)
     except Exception as e:
-        print("Error en /segmentacion/editar:", repr(e))
-        return mostrar_error("Error al cargar la segmentacion para edicion.", 500)
-
+        return render_template('error_500.html'), 500
 
 @app.route('/guardar_segmentacion', methods=['POST'])
-def guardar_segmentacion():
+def guardar_segmentacion_ruta():
     try:
-        producto_id      = int(request.form.get('producto_id', 0))
+        producto_id      = int(request.form['producto_id'])
         stock_final      = int(request.form.get('stock_cliente_final', 0))
         stock_revendedor = int(request.form.get('stock_revendedor', 0))
-        limite_final     = int(request.form.get('limite_compra_final', 0))
-        limite_revend    = int(request.form.get('limite_compra_revendedor', 0))
         motivo           = request.form.get('motivo', '')
 
-        obj = clsSegmentacion(
-            p_producto_id=producto_id,
-            p_usuario_id=1,
-            p_stock_cliente_final=stock_final,
-            p_stock_revendedor=stock_revendedor,
-            p_limite_compra_final=limite_final,
-            p_limite_compra_revendedor=limite_revend,
-            p_motivo=motivo
+        # Validación de stock
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT stock_total FROM productos WHERE id=%s AND activo=1", (producto_id,))
+                    prod = cursor.fetchone()
+                    if not prod:
+                        return mostrar_error("Producto no encontrado o inactivo.")
+                    
+                    if (stock_final + stock_revendedor > prod['stock_total']):
+                        return mostrar_error(f"Stock insuficiente. Disponible: {prod['stock_total']}, Solicitado: {stock_final + stock_revendedor}")
+
+        # Insertar segmentación
+        objSegmentacion = clsSegmentacion(
+            producto_id=producto_id,
+            stock_cliente_final=stock_final,
+            stock_revendedor=stock_revendedor,
+            limite_compra_final=int(request.form.get('limite_compra_final', 0)),
+            limite_compra_revendedor=int(request.form.get('limite_compra_revendedor', 0)),
+            motivo=motivo
         )
 
-        if insertar_segmentacion(obj):
-            return mostrar_exito(
-                'Ajuste de segmentacion registrado con exito.',
-                '/segmentacion', 'Ver segmentaciones')
-        return mostrar_error("No se pudo registrar. El total asignado puede superar el stock disponible.")
+        if insertar_segmentacion(objSegmentacion):
+            # El historial se registra con su propia conexión interna
+            registrar_historial(producto_id, 'CREATE', p_motivo=motivo)
+            return mostrar_exito('Segmentación creada correctamente.', '/segmentacion')
+        else:
+            return mostrar_error("No se pudo guardar la segmentación.")
     except Exception as e:
-        print("Error en /guardar_segmentacion:", repr(e))
-        return mostrar_error("Error interno al registrar la segmentacion.", 500)
-
+        print(f"Error en guardar_segmentacion: {e}")
+        return mostrar_error("Error interno al procesar la segmentación.", 500)
 
 @app.route('/actualizar_segmentacion', methods=['POST'])
 def actualizar_segmentacion_ruta():
     try:
-        seg_id           = int(request.form.get('seg_id', 0))
+        seg_id           = int(request.form['seg_id'])
         stock_final      = int(request.form.get('stock_cliente_final', 0))
         stock_revendedor = int(request.form.get('stock_revendedor', 0))
-        limite_final     = int(request.form.get('limite_compra_final', 0))
-        limite_revend    = int(request.form.get('limite_compra_revendedor', 0))
         motivo           = request.form.get('motivo', '')
 
-        obj = clsSegmentacion(
-            p_id=seg_id,
-            p_usuario_id=1,
-            p_stock_cliente_final=stock_final,
-            p_stock_revendedor=stock_revendedor,
-            p_limite_compra_final=limite_final,
-            p_limite_compra_revendedor=limite_revend,
-            p_motivo=motivo
+        anterior = None
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Obtener datos anteriores para historial
+                    cursor.execute("""
+                        SELECT s.*, p.stock_total FROM segmentacion_inventario s
+                        JOIN productos p ON s.producto_id = p.id WHERE s.id=%s
+                    """, (seg_id,))
+                    anterior = cursor.fetchone()
+                    if not anterior:
+                        return mostrar_error("Segmentación no encontrada.")
+                    
+                    if (stock_final + stock_revendedor > anterior['stock_total']):
+                        return mostrar_error(f"Stock insuficiente. Disponible: {anterior['stock_total']}, Solicitado: {stock_final + stock_revendedor}")
+
+        objSegmentacion = clsSegmentacion(
+            id=seg_id,
+            stock_cliente_final=stock_final,
+            stock_revendedor=stock_revendedor,
+            limite_compra_final=int(request.form.get('limite_compra_final', 0)),
+            limite_compra_revendedor=int(request.form.get('limite_compra_revendedor', 0)),
+            motivo=motivo
         )
 
-        if actualizar_segmentacion(obj):
-            return mostrar_exito(
-                'Ajuste de segmentacion actualizado correctamente.',
-                '/segmentacion', 'Ver segmentaciones')
-        return mostrar_error("No se pudo actualizar. Verifique los datos e intente de nuevo.")
+        if actualizar_segmentacion(objSegmentacion):
+            if anterior:
+                # Registrar cambio en el historial
+                registrar_historial(
+                    p_producto_id=anterior['producto_id'], 
+                    p_accion='UPDATE',
+                    p_campo='segmentacion_stock',
+                    p_anterior=f"F:{anterior['stock_cliente_final']} R:{anterior['stock_revendedor']}",
+                    p_nuevo=f"F:{stock_final} R:{stock_revendedor}",
+                    p_motivo=motivo
+                )
+            return mostrar_exito('Segmentación actualizada correctamente.', '/segmentacion')
+        else:
+            return mostrar_error("No se pudo actualizar la segmentación.")
     except Exception as e:
-        print("Error en /actualizar_segmentacion:", repr(e))
-        return mostrar_error("Error interno al actualizar la segmentacion.", 500)
-
-
-@app.route('/eliminar_segmentacion/<int:seg_id>', methods=['POST'])
+        print(f"Error en actualizar_segmentacion: {e}")
+        return mostrar_error("Error interno al actualizar la segmentación.", 500)
+    
+@app.route('/eliminar_segmentacion/<int:seg_id>')
 def eliminar_segmentacion_ruta(seg_id):
     try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT producto_id FROM segmentacion_inventario WHERE id=%s", (seg_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        registrar_historial(row['producto_id'], 'DELETE', p_motivo='Segmentación eliminada')
+                conn.commit()
+
         if eliminar_segmentacion(seg_id):
-            return mostrar_exito(
-                'Ajuste de segmentacion eliminado.',
-                '/segmentacion', 'Ver segmentaciones')
-        return mostrar_error("Registro de segmentacion no encontrado.")
+            return render_template('exito.html', mensaje='Segmentación eliminada correctamente.', volver='/segmentacion')
+        else:
+            return render_template('error_500.html'), 500
     except Exception as e:
-        print("Error en /eliminar_segmentacion:", repr(e))
-        return mostrar_error("Error interno al eliminar la segmentacion.", 500)
+        return render_template('error_500.html'), 500
 
-
-@app.route('/toggle_segmentacion/<int:seg_id>', methods=['POST'])
+@app.route('/toggle_segmentacion/<int:seg_id>')
 def toggle_segmentacion_ruta(seg_id):
     try:
-        if toggle_segmentacion(seg_id):
-            return mostrar_exito(
-                'Estado de segmentacion modificado con exito.',
-                '/segmentacion', 'Ver segmentaciones')
-        return mostrar_error("Registro de segmentacion no encontrado.")
-    except Exception as e:
-        print("Error en /toggle_segmentacion:", repr(e))
-        return mostrar_error("Error interno al cambiar el estado.", 500)
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT producto_id, activo FROM segmentacion_inventario WHERE id=%s", (seg_id,))
+                    row = cursor.fetchone()
+                    if row:
+                        registrar_historial(row['producto_id'], 'TOGGLE',
+                                            p_campo='activo',
+                                            p_anterior=row['activo'],
+                                            p_nuevo=1 - row['activo'])
+                conn.commit()
 
+        if toggle_segmentacion(seg_id):
+            datos = _obtener_datos_segmentacion()
+            return render_template('segmentacion.html', edit_seg=None, **datos)
+        else:
+            return render_template('error_500.html'), 500
+    except Exception as e:
+        return render_template('error_500.html'), 500
 
 # ════════════════════════════════════════════════════════════
 # ALERTAS
 # ════════════════════════════════════════════════════════════
-@app.route('/listar_alertas')
-def listar_alertas():
+def calcular_prediccion_dinamica(conn, producto_id, stock_actual, static_venta_dia):
     try:
-        resultado = leer_alertas()
+        with conn.cursor() as cursor:
+            # Consultar historial de ajustes del stock_total de los últimos 14 días
+            sql = """
+                SELECT valor_anterior, valor_nuevo, fecha
+                FROM historial_ajustes
+                WHERE producto_id = %s 
+                  AND (campo_modificado = 'stock_total' OR accion = 'CONTEO')
+                  AND fecha >= NOW() - INTERVAL 14 DAY
+                ORDER BY fecha ASC
+            """
+            cursor.execute(sql, (producto_id,))
+            rows = cursor.fetchall()
+            
+            reducciones = 0
+            oldest_fecha = None
+            
+            for row in rows:
+                try:
+                    val_ant = int(row['valor_anterior']) if row['valor_anterior'] is not None else 0
+                    val_nue = int(row['valor_nuevo']) if row['valor_nuevo'] is not None else 0
+                    if val_ant > val_nue:
+                        reducciones += (val_ant - val_nue)
+                        if oldest_fecha is None:
+                            oldest_fecha = row['fecha']
+                except (ValueError, TypeError):
+                    continue
+            
+            if oldest_fecha and reducciones > 0:
+                delta = datetime.now() - oldest_fecha
+                days = delta.total_seconds() / 86400.0
+                days = max(days, 1.0) # Al menos 1 día para evitar valores atípicos
+                venta_dia_real = reducciones / days
+            else:
+                venta_dia_real = float(static_venta_dia or 0)
+                
+            if venta_dia_real > 0:
+                horas_restantes = (stock_actual / venta_dia_real) * 24.0
+            else:
+                horas_restantes = 9999.0
+                
+            # Calcular nivel
+            if venta_dia_real <= 0:
+                nivel = 'ok'
+            elif horas_restantes <= 24:
+                nivel = 'critico'
+            elif horas_restantes <= 72:
+                nivel = 'urgente'
+            elif horas_restantes <= 120:
+                nivel = 'advertencia'
+            else:
+                nivel = 'ok'
+                
+            return {
+                'venta_dia_real': round(venta_dia_real, 2),
+                'horas_restantes_real': round(horas_restantes, 1),
+                'nivel_real': nivel,
+                'usando_historial': oldest_fecha is not None and reducciones > 0
+            }
+    except Exception:
+        # Fallback si ocurre algún error
+        venta_dia_real = float(static_venta_dia or 0)
+        horas = (stock_actual / venta_dia_real * 24) if venta_dia_real > 0 else 9999.0
+        nivel = 'ok'
+        if venta_dia_real > 0:
+            if horas <= 24: nivel = 'critico'
+            elif horas <= 72: nivel = 'urgente'
+            elif horas <= 120: nivel = 'advertencia'
+        return {
+            'venta_dia_real': round(venta_dia_real, 2),
+            'horas_restantes_real': round(horas, 1),
+            'nivel_real': nivel,
+            'usando_historial': False
+        }
+
+@app.route('/listar_alertas')
+def api_get_alertas():
+    try:
+        conn = obtenerconexion()
+        resultado = None
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT * FROM v_alertas_activas")
+                    resultado = cursor.fetchall()
         return render_template('lista_alertas.html', datos=resultado)
     except Exception as e:
-        print("Error en /listar_alertas:", repr(e))
-        return mostrar_error("Error al cargar las alertas.", 500)
-
-
-@app.route('/eliminar_alerta/<int:alerta_id>', methods=['POST'])
-def eliminar_alerta_ruta(alerta_id):
-    try:
-        if eliminar_alerta(alerta_id):
-            return mostrar_exito(
-                'Alerta descartada correctamente.',
-                '/alertas', 'Ver alertas')
-        return mostrar_error("Alerta no encontrada.")
-    except Exception as e:
-        print("Error en /eliminar_alerta:", repr(e))
-        return mostrar_error("Error interno al descartar la alerta.", 500)
-
+        return "<p>Excepción superior: " + repr(e) + "</p>"
 
 # ════════════════════════════════════════════════════════════
 # HISTORIAL
@@ -816,8 +1032,6 @@ def restablecer():
                                    error='Error interno. Intente de nuevo.')
 
     return render_template('restablecer.html', error=None)
-
-
 
 # ════════════════════════════════════════════════════════════
 if __name__ == '__main__':

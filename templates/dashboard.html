@@ -19,12 +19,12 @@
   <div class="card mb-4">
     <div class="flex items-center justify-between">
       <div>
-        <div style="font-size:18px;font-weight:700">Hola, {{ session.nombre.split()[0] }} 👋</div>
-        <div class="text-muted text-sm mt-2">{{ session.sede }}</div>
+        <div style="font-size:18px;font-weight:700">Hola, {{ nombre.split()[0] }} 👋</div>
+        <div class="text-muted text-sm mt-2">{{ sede }}</div>
         <div class="text-green text-sm mt-2" id="fecha-hora"></div>
       </div>
       <div style="width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">
-        {{ session.nombre[0] | upper }}
+        {{ nombre[0] | upper }}
       </div>
     </div>
   </div>

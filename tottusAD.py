@@ -14,8 +14,43 @@ from bd import obtenerconexion
 # CLASES DE ENTIDAD
 # ════════════════════════════════════════════════════════════
 
+# ════════════════════════════════════════════════════════════
+# DASHBOARD
+# ════════════════════════════════════════════════════════════
 
+def obtener_stats_dashboard():
+    try:
+        stats = {'alertas_criticas': 0, 'total_productos': 0}
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT COUNT(*) AS n FROM alertas_quiebre WHERE activo=1 AND nivel='critico'")
+                    stats['alertas_criticas'] = cursor.fetchone()['n']
+                    cursor.execute("SELECT COUNT(*) AS n FROM productos WHERE activo=1")
+                    stats['total_productos'] = cursor.fetchone()['n']
+        return stats
+    except Exception as e:
+        print(repr(e))
+        return {'alertas_criticas': 0, 'total_productos': 0}
 
+def obtener_alertas_recientes():
+    try:
+        conn = obtenerconexion()
+        alertas = []
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT sku, producto, nivel, horas_restantes
+                        FROM alertas_quiebre WHERE activo=1 
+                        ORDER BY horas_restantes ASC LIMIT 3
+                    """)
+                    alertas = cursor.fetchall()
+        return alertas
+    except Exception as e:
+        print(repr(e))
+        return []
 
 # ════════════════════════════════════════════════════════════
 # CLASES DE ENTIDAD - PRODUCTO Xavier Ruiz Guevara
@@ -341,131 +376,87 @@ def _registrar_historial(cursor, producto_id, accion,
 # ════════════════════════════════════════════════════════════
 
 class clsSegmentacion:
-    def __init__(self, p_id=None, p_producto_id=None, p_usuario_id=None,
-                 p_stock_cliente_final=None, p_stock_revendedor=None,
-                 p_limite_compra_final=None, p_limite_compra_revendedor=None,
-                 p_motivo=None, p_activo=None):
-        self.id                      = p_id
-        self.producto_id             = p_producto_id
-        self.usuario_id              = p_usuario_id
-        self.stock_cliente_final     = p_stock_cliente_final
-        self.stock_revendedor        = p_stock_revendedor
-        self.limite_compra_final     = p_limite_compra_final
-        self.limite_compra_revendedor = p_limite_compra_revendedor
-        self.motivo                  = p_motivo
-        self.activo                  = p_activo
+    def __init__(self, id=None, producto_id=None, stock_cliente_final=0, 
+                 stock_revendedor=0, limite_compra_final=0, 
+                 limite_compra_revendedor=0, motivo=None):
+        self.id = id
+        self.producto_id = producto_id
+        self.stock_cliente_final = stock_cliente_final
+        self.stock_revendedor = stock_revendedor
+        self.limite_compra_final = limite_compra_final
+        self.limite_compra_revendedor = limite_compra_revendedor
+        self.motivo = motivo
 
 
 class clsAlerta:
-    def __init__(self, p_id=None, p_producto_id=None, p_sku=None,
-                 p_producto=None, p_nivel=None, p_horas_restantes=None,
-                 p_estado_transf=None, p_activo=None):
-        self.id              = p_id
-        self.producto_id     = p_producto_id
-        self.sku             = p_sku
-        self.producto        = p_producto
-        self.nivel           = p_nivel
-        self.horas_restantes = p_horas_restantes
-        self.estado_transf   = p_estado_transf
-        self.activo          = p_activo
-
+    def __init__(self, id=None, producto_id=None, producto=None, sku=None, 
+                 categoria=None, unidades=None, venta_dia=None, estado_transf=None):
+        self.id = id
+        self.producto_id = producto_id
+        self.producto = producto
+        self.sku = sku
+        self.categoria = categoria
+        self.unidades = unidades
+        self.venta_dia = venta_dia
+        self.estado_transf = estado_transf
 
 # ════════════════════════════════════════════════════════════
 # CRUD — SEGMENTACIONES
 # ════════════════════════════════════════════════════════════
 
-def leer_segmentaciones():
-    """
-    Retorna lista de segmentaciones con datos del producto asociado,
-    ordenadas por fecha de creacion descendente.
-    """
+def obtener_segmentaciones():
     try:
         conn = obtenerconexion()
-        result = None
+        lista = []
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql =  " SELECT s.id, s.producto_id, s.usuario_id, "
-                    sql += "        s.stock_cliente_final, s.stock_revendedor, "
-                    sql += "        s.limite_compra_final, s.limite_compra_revendedor, "
-                    sql += "        s.motivo, s.activo, s.fecha_creacion, "
-                    sql += "        p.nombre, p.sku, p.stock_total "
-                    sql += "   FROM segmentacion_inventario s "
-                    sql += "   JOIN productos p ON s.producto_id = p.id "
-                    sql += "  ORDER BY s.fecha_creacion DESC "
-                    cursor.execute(sql)
-                    result = cursor.fetchall()
-        return result
-    except Exception:
-        raise
+                    cursor.execute("""
+                        SELECT s.*, p.nombre, p.sku, p.stock_total
+                        FROM segmentacion_inventario s
+                        JOIN productos p ON s.producto_id = p.id
+                        ORDER BY s.fecha_creacion DESC
+                    """)
+                    lista = cursor.fetchall()
+        return lista
+    except Exception as e:
+        print(repr(e))
+        return []
 
-
-def leer_segmentacion_por_id(p_id):
-    """
-    Retorna un dict con la segmentacion y datos del producto o None si no existe.
-    """
+def obtener_segmentacion_xID(p_seg_id):
     try:
         conn = obtenerconexion()
-        result = None
+        fila = None
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql =  " SELECT s.id, s.producto_id, s.usuario_id, "
-                    sql += "        s.stock_cliente_final, s.stock_revendedor, "
-                    sql += "        s.limite_compra_final, s.limite_compra_revendedor, "
-                    sql += "        s.motivo, s.activo, s.fecha_creacion, "
-                    sql += "        p.nombre, p.sku, p.stock_total "
-                    sql += "   FROM segmentacion_inventario s "
-                    sql += "   JOIN productos p ON s.producto_id = p.id "
-                    sql += "  WHERE s.id = %s "
-                    cursor.execute(sql, (p_id,))
-                    result = cursor.fetchone()
-        return result
-    except Exception:
-        raise
+                    cursor.execute("""
+                        SELECT s.*, p.nombre, p.sku, p.stock_total
+                        FROM segmentacion_inventario s
+                        JOIN productos p ON s.producto_id = p.id
+                        WHERE s.id = %s
+                    """, (p_seg_id,))
+                    fila = cursor.fetchone()
+        return fila
+    except Exception as e:
+        print(repr(e))
+        return None
 
-
-def insertar_segmentacion(p_segmentacion):
-    """
-    Inserta un nuevo registro de segmentacion de inventario.
-    Valida que la suma no supere el stock total del producto.
-    Retorna True si se inserto, False si fallo la validacion o hubo error.
-    """
+def insertar_segmentacion(p_Segmentacion):
     try:
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    # Obtener stock total del producto
-                    sql =  " SELECT stock_total FROM productos "
-                    sql += "  WHERE id = %s AND activo = 1 "
-                    cursor.execute(sql, (p_segmentacion.producto_id,))
-                    prod = cursor.fetchone()
-                    if not prod:
-                        return False
-                    total_asignado = (p_segmentacion.stock_cliente_final or 0) + \
-                                     (p_segmentacion.stock_revendedor or 0)
-                    if total_asignado > prod['stock_total']:
-                        return False  # Supera stock disponible
-
-                    sql  = " INSERT INTO `segmentacion_inventario` "
-                    sql += "   (`producto_id`, `usuario_id`, `stock_cliente_final`, "
-                    sql += "    `stock_revendedor`, `limite_compra_final`, "
-                    sql += "    `limite_compra_revendedor`, `motivo`) "
-                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s) "
-                    cursor.execute(sql, (
-                        p_segmentacion.producto_id,
-                        p_segmentacion.usuario_id or 1,
-                        p_segmentacion.stock_cliente_final or 0,
-                        p_segmentacion.stock_revendedor or 0,
-                        p_segmentacion.limite_compra_final or 0,
-                        p_segmentacion.limite_compra_revendedor or 0,
-                        p_segmentacion.motivo or '',
-                    ))
-                    _registrar_historial(
-                        cursor, p_segmentacion.producto_id, 'CREATE',
-                        motivo=p_segmentacion.motivo or 'Segmentacion creada'
-                    )
+                    sql = """
+                        INSERT INTO segmentacion_inventario
+                        (producto_id, usuario_id, stock_cliente_final, stock_revendedor,
+                         limite_compra_final, limite_compra_revendedor, motivo)
+                        VALUES (%s, 1, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(sql, (p_Segmentacion.producto_id, p_Segmentacion.stock_cliente_final,
+                                         p_Segmentacion.stock_revendedor, p_Segmentacion.limite_compra_final,
+                                         p_Segmentacion.limite_compra_revendedor, p_Segmentacion.motivo))
                 conn.commit()
             return True
         return False
@@ -473,59 +464,22 @@ def insertar_segmentacion(p_segmentacion):
         print(repr(e))
         return False
 
-
-def actualizar_segmentacion(p_segmentacion):
-    """
-    Actualiza los campos de una segmentacion existente.
-    Valida que la suma no supere el stock total del producto.
-    Retorna True si actualizo, False si no encontro el registro o hubo error.
-    """
+def actualizar_segmentacion(p_Segmentacion):
     try:
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    # Obtener datos anteriores
-                    sql =  " SELECT s.stock_cliente_final, s.producto_id, "
-                    sql += "        p.stock_total "
-                    sql += "   FROM segmentacion_inventario s "
-                    sql += "   JOIN productos p ON s.producto_id = p.id "
-                    sql += "  WHERE s.id = %s "
-                    cursor.execute(sql, (p_segmentacion.id,))
-                    anterior = cursor.fetchone()
-                    if not anterior:
-                        return False
-
-                    total_asignado = (p_segmentacion.stock_cliente_final or 0) + \
-                                     (p_segmentacion.stock_revendedor or 0)
-                    if total_asignado > anterior['stock_total']:
-                        return False  # Supera stock disponible
-
-                    sql  = " UPDATE `segmentacion_inventario` "
-                    sql += "    SET `stock_cliente_final` = %s, "
-                    sql += "        `stock_revendedor` = %s, "
-                    sql += "        `limite_compra_final` = %s, "
-                    sql += "        `limite_compra_revendedor` = %s, "
-                    sql += "        `motivo` = %s, "
-                    sql += "        `usuario_id` = %s, "
-                    sql += "        `updated_at` = NOW() "
-                    sql += "  WHERE `id` = %s "
-                    cursor.execute(sql, (
-                        p_segmentacion.stock_cliente_final or 0,
-                        p_segmentacion.stock_revendedor or 0,
-                        p_segmentacion.limite_compra_final or 0,
-                        p_segmentacion.limite_compra_revendedor or 0,
-                        p_segmentacion.motivo or '',
-                        p_segmentacion.usuario_id or 1,
-                        p_segmentacion.id,
-                    ))
-                    _registrar_historial(
-                        cursor, anterior['producto_id'], 'UPDATE',
-                        campo='stock_cliente_final',
-                        anterior=anterior['stock_cliente_final'],
-                        nuevo=p_segmentacion.stock_cliente_final,
-                        motivo=p_segmentacion.motivo or 'Edicion de segmentacion'
-                    )
+                    sql = """
+                        UPDATE segmentacion_inventario
+                        SET stock_cliente_final=%s, stock_revendedor=%s,
+                            limite_compra_final=%s, limite_compra_revendedor=%s,
+                            motivo=%s, updated_at=NOW()
+                        WHERE id=%s
+                    """
+                    cursor.execute(sql, (p_Segmentacion.stock_cliente_final, p_Segmentacion.stock_revendedor,
+                                         p_Segmentacion.limite_compra_final, p_Segmentacion.limite_compra_revendedor,
+                                         p_Segmentacion.motivo, p_Segmentacion.id))
                 conn.commit()
             return True
         return False
@@ -533,31 +487,13 @@ def actualizar_segmentacion(p_segmentacion):
         print(repr(e))
         return False
 
-
-def eliminar_segmentacion(p_id):
-    """
-    Elimina fisicamente un registro de segmentacion de inventario.
-    Retorna True si elimino, False si no existia o hubo error.
-    """
+def eliminar_segmentacion(p_seg_id):
     try:
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    # Verificar que existe y obtener producto_id para historial
-                    sql =  " SELECT producto_id FROM segmentacion_inventario "
-                    sql += "  WHERE id = %s "
-                    cursor.execute(sql, (p_id,))
-                    row = cursor.fetchone()
-                    if not row:
-                        return False
-
-                    _registrar_historial(
-                        cursor, row['producto_id'], 'DELETE',
-                        motivo='Segmentacion eliminada'
-                    )
-                    sql = " DELETE FROM `segmentacion_inventario` WHERE `id` = %s "
-                    cursor.execute(sql, (p_id,))
+                    cursor.execute("DELETE FROM segmentacion_inventario WHERE id=%s", (p_seg_id,))
                 conn.commit()
             return True
         return False
@@ -565,119 +501,82 @@ def eliminar_segmentacion(p_id):
         print(repr(e))
         return False
 
-
-def toggle_segmentacion(p_id):
-    """
-    Activa o desactiva (toggle) una segmentacion de inventario.
-    Retorna True si cambio el estado, False si no existia o hubo error.
-    """
+def toggle_segmentacion(p_seg_id):
     try:
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    # Obtener estado actual
-                    sql =  " SELECT producto_id, activo "
-                    sql += "   FROM segmentacion_inventario "
-                    sql += "  WHERE id = %s "
-                    cursor.execute(sql, (p_id,))
-                    row = cursor.fetchone()
-                    if not row:
-                        return False
-
-                    nuevo_estado = 0 if row['activo'] else 1
-                    sql  = " UPDATE `segmentacion_inventario` "
-                    sql += "    SET `activo` = %s "
-                    sql += "  WHERE `id` = %s "
-                    cursor.execute(sql, (nuevo_estado, p_id))
-
-                    _registrar_historial(
-                        cursor, row['producto_id'], 'TOGGLE',
-                        campo='activo',
-                        anterior=row['activo'],
-                        nuevo=nuevo_estado,
-                        motivo='Toggle de segmentacion'
-                    )
+                    cursor.execute("UPDATE segmentacion_inventario SET activo = 1 - activo WHERE id = %s", (p_seg_id,))
                 conn.commit()
             return True
         return False
     except Exception as e:
         print(repr(e))
         return False
-
-
 # ════════════════════════════════════════════════════════════
 # ALERTAS
 # ════════════════════════════════════════════════════════════
 
-def contar_alertas():
-    """
-    Retorna el numero entero de alertas activas de nivel critico o urgente.
-    Retorna 0 ante cualquier fallo.
-    """
+def obtener_alertas_activas():
+    try:
+        conn = obtenerconexion()
+        alertas = []
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("SELECT * FROM v_alertas_activas")
+                    alertas = cursor.fetchall()
+        return alertas
+    except Exception as e:
+        print(repr(e))
+        return []
+
+def obtener_totales_alertas():
+    try:
+        conn = obtenerconexion()
+        totales = {'critico': 0, 'urgente': 0, 'ok': 0}
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT nivel, COUNT(*) AS n FROM alertas_quiebre 
+                        WHERE activo=1 GROUP BY nivel
+                    """)
+                    for fila in cursor.fetchall():
+                        totales[fila['nivel']] = fila['n']
+        return totales
+    except Exception as e:
+        print(repr(e))
+        return {'critico': 0, 'urgente': 0, 'ok': 0}
+
+def eliminar_alerta(p_alerta_id):
     try:
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql =  " SELECT COUNT(*) AS n "
-                    sql += "   FROM alertas_quiebre "
-                    sql += "  WHERE activo = 1 "
-                    sql += "    AND nivel IN ('critico', 'urgente') "
-                    cursor.execute(sql)
-                    row = cursor.fetchone()
-                    return row['n'] if row else 0
-        return 0
-    except Exception:
-        return 0
+                    cursor.execute("UPDATE alertas_quiebre SET activo=0 WHERE id=%s", (p_alerta_id,))
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False
 
-
-def leer_alertas():
-    """
-    Retorna lista completa de alertas activas desde la vista v_alertas_activas.
-    """
-    try:
-        conn = obtenerconexion()
-        result = None
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    sql =  " SELECT id, producto_id, sku, producto, "
-                    sql += "        nivel, horas_restantes, estado_transf "
-                    sql += "   FROM v_alertas_activas "
-                    cursor.execute(sql)
-                    result = cursor.fetchall()
-        return result
-    except Exception:
-        raise
-
-
-def eliminar_alerta(p_id):
-    """
-    Desactiva (soft-delete) una alerta de quiebre.
-    Retorna True si desactivo, False si no existia o hubo error.
-    """
+def actualizar_alerta(p_Alerta):
     try:
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql =  " SELECT producto_id FROM alertas_quiebre "
-                    sql += "  WHERE id = %s "
-                    cursor.execute(sql, (p_id,))
-                    row = cursor.fetchone()
-                    if not row:
-                        return False
-
-                    sql  = " UPDATE `alertas_quiebre` "
-                    sql += "    SET `activo` = 0 "
-                    sql += "  WHERE `id` = %s "
-                    cursor.execute(sql, (p_id,))
-
-                    _registrar_historial(
-                        cursor, row['producto_id'], 'DELETE',
-                        motivo='Alerta descartada manualmente'
-                    )
+                    sql = """
+                        UPDATE alertas_quiebre 
+                        SET unidades=%s, venta_dia=%s, estado_transf=%s, updated_at=NOW()
+                        WHERE id=%s
+                    """
+                    cursor.execute(sql, (p_Alerta.unidades, p_Alerta.venta_dia, 
+                                        p_Alerta.estado_transf, p_Alerta.id))
                 conn.commit()
             return True
         return False

@@ -14,6 +14,8 @@
     background: transparent;
     color: #757575;
     transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
   }
   .btn-toggle.active {
     background: var(--primary);
@@ -22,16 +24,16 @@
   .btn-toggle:hover:not(.active) {
     background: #EAEAEA;
   }
-  /* Estilos para la barra flotante */
-  .bulk-action-bar.hidden {
-    transform: translateX(-50%) translateY(150%) !important;
-    opacity: 0;
-    pointer-events: none;
+  
+  .form-group input.error {
+    border-color: var(--danger) !important;
+    background-color: #fff8f8;
   }
-  .bulk-action-bar.visible {
-    transform: translateX(-50%) translateY(0) !important;
-    opacity: 1;
-    pointer-events: all;
+  .error-msg {
+    color: var(--danger);
+    font-size: 11px;
+    margin-top: 4px;
+    display: block;
   }
 </style>
 {% endblock %}
@@ -55,24 +57,17 @@
     </div>
   </div>
 
-  <!-- Barra de Modos y Controles -->
-  <div class="card mb-4" style="padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px">
-    <!-- Selector de Modo de Predicción -->
+  <!-- Barra de Modos -->
+  <div class="card mb-4" style="padding:12px 16px;display:flex;align-items:center;justify-content:flex-start;gap:12px">
+    <div style="font-size:13px;font-weight:600;color:var(--text-muted)">Modo de cálculo:</div>
     <div style="display:flex;background:#F5F5F5;border-radius:20px;padding:4px;gap:4px">
-      <button id="btn-modo-estatico" class="btn-toggle active" onclick="setModoCalculo('estatico')">
+      <a href="/alertas?modo=estatico" id="btn-modo-estatico" class="btn-toggle {% if modo != 'dinamico' %}active{% endif %}">
         Estático (BD)
-      </button>
-      <button id="btn-modo-dinamico" class="btn-toggle" onclick="setModoCalculo('dinamico')">
+      </a>
+      <a href="/alertas?modo=dinamico" id="btn-modo-dinamico" class="btn-toggle {% if modo == 'dinamico' %}active{% endif %}">
         Dinámico (Historial)
-      </button>
+      </a>
     </div>
-    <!-- Seleccionar Todas -->
-    {% if alertas %}
-    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;cursor:pointer">
-      <input type="checkbox" id="check-all-alerts" onchange="toggleSelectAllAlerts(this)" style="width:16px;height:16px;accent-color:var(--primary)">
-      <span>Seleccionar todas</span>
-    </label>
-    {% endif %}
   </div>
 
   <!-- Header fila -->
@@ -80,33 +75,20 @@
     <div style="font-size:16px;font-weight:600;display:flex;align-items:center;gap:6px">
       <i class="fa-solid fa-triangle-exclamation" style="color:var(--warning)"></i>
       <span>Alertas de Quiebre</span>
-      <span id="lbl-tipo-calculo" class="badge badge-gray" style="font-size:10px">Estático</span>
+      <span id="lbl-tipo-calculo" class="badge {% if modo == 'dinamico' %}badge-green{% else %}badge-gray{% endif %}" style="font-size:10px">
+        {{ 'Predicción Dinámica' if modo == 'dinamico' else 'Estático' }}
+      </span>
     </div>
     <div style="font-size:12px;color:var(--text-muted)">Act. automática · <span id="last-update"></span></div>
   </div>
 
-  <!-- Grid de alertas (PC: 3 cols, móvil: 1 col) -->
+  <!-- Grid de alertas -->
   <div id="alertas-grid" style="display:grid;grid-template-columns:1fr;gap:16px">
     {% if alertas %}
       {% for a in alertas %}
-      <div class="alert-card {{ a.nivel }}" id="alerta-{{ a.id }}"
-           data-alerta-id="{{ a.id }}"
-           data-producto-id="{{ a.producto_id }}"
-           data-unidades="{{ a.unidades }}"
-           data-sku="{{ a.sku }}"
-           data-producto-nombre="{{ a.producto }}"
-           data-categoria="{{ a.categoria }}"
-           data-static-venta="{{ a.venta_dia }}"
-           data-static-horas="{{ a.horas_restantes }}"
-           data-static-nivel="{{ a.nivel }}"
-           data-estado-transf="{{ a.estado_transf }}">
+      <div class="alert-card {{ a.nivel }}" id="alerta-{{ a.id }}">
         
-        <div class="alert-card-header" style="position:relative;display:flex;align-items:center;gap:10px">
-          <!-- Checkbox de Selección Masiva -->
-          <div style="display:flex;align-items:center">
-            <input type="checkbox" class="alert-item-checkbox" data-id="{{ a.id }}" onchange="onAlertCheckboxChange()" style="width:18px;height:18px;accent-color:var(--primary);cursor:pointer">
-          </div>
-          
+        <div class="alert-card-header" style="display:flex;align-items:center;gap:10px">
           <div class="alert-box-icon" style="width:44px;height:44px;border-radius:10px;background:{% if a.nivel=='critico' %}var(--danger-light){% elif a.nivel=='urgente' %}var(--warning-light){% else %}var(--primary-light){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0">
             <i class="fa-solid fa-box" style="color:{% if a.nivel=='critico' %}var(--danger){% elif a.nivel=='urgente' %}var(--warning){% else %}var(--primary){% endif %}"></i>
           </div>
@@ -120,15 +102,15 @@
         <!-- Métricas -->
         <div class="alert-metrics">
           <div class="alert-metric">
-            <div class="metric-val metric-unidades {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">{{ a.unidades }}</div>
+            <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">{{ a.unidades }}</div>
             <div class="metric-lbl">unidades</div>
           </div>
           <div class="alert-metric">
-            <div class="metric-val val-venta-dia">{{ a.venta_dia }}</div>
+            <div class="metric-val">{{ a.venta_dia }}</div>
             <div class="metric-lbl">unid./día</div>
           </div>
           <div class="alert-metric">
-            <div class="metric-val val-horas-restantes {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
+            <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
               {{ a.horas_restantes | round(0) | int }}h
             </div>
             <div class="metric-lbl">restantes</div>
@@ -146,341 +128,158 @@
           <i class="fa-solid fa-truck"></i> {{ a.estado_transf }}
         </div>
 
-        <!-- CRUD: botones Editar + Eliminar -->
+        <!-- CRUD Acciones Tradicionales -->
         <div class="alert-card-actions mt-3">
           <a href="{{ url_for('segmentacion') }}" class="alert-detail-link">
             Ver Detalle ›
           </a>
-          <button class="btn-edit" onclick="abrirEditar({{ a.id }}, '{{ a.producto }}')">
+          <button class="btn-edit" onclick="abrirEditar({{ a.id }}, '{{ a.producto }}', {{ a.unidades }}, {{ a.venta_dia }}, '{{ a.estado_transf }}')">
             <i class="fa-solid fa-pen"></i> Editar
           </button>
-          <button class="btn-delete" onclick="confirmarEliminar({{ a.id }}, '{{ a.producto }}')">
+          <a href="{{ url_for('eliminar_alerta_ruta', alerta_id=a.id) }}" class="btn-delete" style="text-decoration:none" onclick="return confirm('¿Deseas descartar la alerta de {{ a.producto }}?');">
             <i class="fa-solid fa-trash"></i> Eliminar
-          </button>
+          </a>
         </div>
       </div>
       {% endfor %}
     {% else %}
-      <!-- Empty State -->
       <div id="empty-state" class="card text-center" style="padding:48px 24px">
         <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--primary);margin-bottom:16px"></i>
         <div style="font-size:18px;font-weight:600;margin-bottom:8px">¡Todo en orden!</div>
-        <div class="text-muted">No hay alertas de quiebre activas.</div>
+        <div class="text-muted">No hay alertas de quiebre activas en este modo.</div>
       </div>
     {% endif %}
   </div>
 </div>
 
-<!-- Barra Flotante de Acciones Masivas -->
-<div id="bulk-action-bar" class="bulk-action-bar hidden" style="position:fixed;bottom:24px;left:50%;background:#2E2E2E;color:#fff;padding:12px 24px;border-radius:30px;box-shadow:0 8px 30px rgba(0,0,0,0.35);display:flex;align-items:center;gap:20px;z-index:999;transition:transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s">
-  <span id="bulk-count-lbl" style="font-size:14px;font-weight:600">0 alertas seleccionadas</span>
-  <button onclick="bulkDescartarAlertas()" style="background:var(--danger);color:#fff;border:none;border-radius:20px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">
-    <i class="fa-solid fa-trash"></i> Descartar
-  </button>
+<!-- Modal de Edición Tradicional -->
+<div id="modal-edit-alerta" class="modal-overlay hidden">
+  <div class="modal-card" style="text-align:left; max-width:400px;">
+    <div class="modal-title" style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
+        <i class="fa-solid fa-pen-to-square" style="color:var(--primary)"></i>
+        <span id="edit-modal-title">Editar Alerta</span>
+    </div>
+    
+    <form id="form-edit-alerta" method="POST" action="/alertas/actualizar">
+      <input type="hidden" id="edit-alerta-id" name="id">
+      
+      <div class="form-group">
+        <label for="edit-unidades">Unidades en góndola</label>
+        <input type="number" id="edit-unidades" name="unidades" min="0" step="1">
+        <small id="error-unidades" class="error-msg" style="display:none;"></small>
+      </div>
+      
+      <div class="form-group">
+        <label for="edit-venta">Velocidad de venta (unid./día)</label>
+        <input type="number" id="edit-venta" name="venta_dia" min="0" step="0.1">
+        <small id="error-venta" class="error-msg" style="display:none;"></small>
+      </div>
+      
+      <div class="form-group">
+        <label for="edit-estado">Estado de transferencia</label>
+        <input type="text" id="edit-estado" name="estado_transf" placeholder="Ej: Pedido generado">
+      </div>
+      
+      <div class="modal-actions" style="margin-top:24px;">
+        <button type="button" class="btn-secondary" onclick="cerrarEditar()">Cancelar</button>
+        <button type="submit" id="btn-guardar-alerta" class="btn-primary">
+          <i class="fa-solid fa-floppy-disk"></i> Guardar Cambios
+        </button>
+      </div>
+    </form>
+  </div>
 </div>
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// UC4 - ALERTAS DE QUIEBRE
-document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-PE', {
-  hour: '2-digit', 
-  minute: '2-digit'
-});
+  // Control visual del tiempo de actualización
+  document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-PE', {
+    hour: '2-digit', 
+    minute: '2-digit'
+  });
 
-// Guardar los totales estáticos iniciales
-const totalesEstaticos = {
-  critico: parseInt(document.getElementById('stat-critico').textContent) || 0,
-  urgente: parseInt(document.getElementById('stat-urgente').textContent) || 0,
-  ok: parseInt(document.getElementById('stat-ok').textContent) || 0
-};
-
-// Variables de estado del modo
-let modoCalculo = 'estatico';
-let datosPredicciones = null;
-
-// Lógica de Selección Masiva
-function toggleSelectAllAlerts(masterCheckbox) {
-  const checkboxes = document.querySelectorAll('.alert-item-checkbox');
-  checkboxes.forEach(cb => cb.checked = masterCheckbox.checked);
-  onAlertCheckboxChange();
-}
-
-function onAlertCheckboxChange() {
-  const checkboxes = document.querySelectorAll('.alert-item-checkbox:checked');
-  const count = checkboxes.length;
-  const bar = document.getElementById('bulk-action-bar');
-  const lbl = document.getElementById('bulk-count-lbl');
-  
-  if (count > 0) {
-    lbl.textContent = `${count} alerta${count > 1 ? 's' : ''} seleccionada${count > 1 ? 's' : ''}`;
-    bar.classList.remove('hidden');
-    bar.classList.add('visible');
-  } else {
-    bar.classList.remove('visible');
-    bar.classList.add('hidden');
-    const master = document.getElementById('check-all-alerts');
-    if (master) master.checked = false;
+  // Funciones locales para el Modal
+  function abrirEditar(id, nombre, unidades, venta, estado) {
+    document.getElementById('edit-alerta-id').value = id;
+    document.getElementById('edit-modal-title').textContent = `Editar: ${nombre}`;
+    document.getElementById('edit-unidades').value = unidades;
+    document.getElementById('edit-venta').value = venta;
+    document.getElementById('edit-estado').value = estado;
+    
+    // Limpiar errores previos
+    limpiarErrores();
+    
+    document.getElementById('modal-edit-alerta').classList.remove('hidden');
   }
-}
 
-// Bulk Descartar
-function bulkDescartarAlertas() {
-  const checkedCheckboxes = document.querySelectorAll('.alert-item-checkbox:checked');
-  const ids = Array.from(checkedCheckboxes).map(cb => parseInt(cb.getAttribute('data-id')));
-  
-  if (ids.length === 0) return;
-  
-  showModal(
-    `¿Deseas descartar las ${ids.length} alertas seleccionadas en lote?\nEsta acción registrará el descarte en el historial de ajustes.`,
-    async () => {
-      const data = await apiPost('/api/alertas/bulk-descartar', { alert_ids: ids }, 'Alertas descartadas correctamente');
-      if (data && data.success) {
-        ids.forEach(id => {
-          const card = document.getElementById(`alerta-${id}`);
-          if (card) card.remove();
-        });
-        
-        // Resetear barra flotante
-        onAlertCheckboxChange();
-        
-        // Recalcular contadores estáticos o recargar
-        setTimeout(() => window.location.reload(), 1500);
-      }
-    }
-  );
-}
-
-// Alternar Modo de Cálculo: Estático vs Dinámico (Predicción)
-async function setModoCalculo(modo) {
-  if (modo === modoCalculo) return;
-  modoCalculo = modo;
-  
-  // Actualizar clases de botones de toggle
-  document.getElementById('btn-modo-estatico').classList.toggle('active', modo === 'estatico');
-  document.getElementById('btn-modo-dinamico').classList.toggle('active', modo === 'dinamico');
-  
-  // Cambiar etiquetas y estilos
-  const lbl = document.getElementById('lbl-tipo-calculo');
-  lbl.textContent = modo === 'dinamico' ? 'Predicción Dinámica' : 'Estático';
-  lbl.className = modo === 'dinamico' ? 'badge badge-green' : 'badge badge-gray';
-  
-  if (modo === 'dinamico') {
-    if (!datosPredicciones) {
-      showToast('Calculando predicciones basadas en historial...', 'warning');
-      try {
-        const res = await fetch('/api/predicciones');
-        const json = await res.json();
-        if (json.success) {
-          datosPredicciones = json.predicciones;
-        } else {
-          showToast('Error cargando predicciones', 'error');
-          setModoCalculo('estatico');
-          return;
-        }
-      } catch (err) {
-        showToast('Error de conexión', 'error');
-        setModoCalculo('estatico');
-        return;
-      }
-    }
-    
-    // Aplicar predicciones dinámicas
-    aplicarPredicciones(datosPredicciones);
-    showToast('Predicción dinámica activada (últimos 14 días)', 'success');
-  } else {
-    // Restaurar valores estáticos
-    restaurarEstaticos();
-    showToast('Restaurado a cálculo estático de base de datos', 'success');
+  function cerrarEditar() {
+    document.getElementById('modal-edit-alerta').classList.add('hidden');
   }
-}
 
-// Aplicar Predicciones Dinámicas al DOM
-function aplicarPredicciones(predicciones) {
-  const grid = document.getElementById('alertas-grid');
-  const cards = Array.from(grid.querySelectorAll('.alert-card'));
+  // Cerrar al hacer click fuera
+  document.getElementById('modal-edit-alerta').addEventListener('click', function(e) {
+    if (e.target === this) cerrarEditar();
+  });
+
+  // --- VALIDACIÓN EN TIEMPO REAL (Estilo del Profesor) ---
   
-  let totalCritico = 0;
-  let totalUrgente = 0;
-  let totalOk = 0;
-  
-  cards.forEach(card => {
-    const alertId = parseInt(card.getAttribute('data-alerta-id'));
-    const pred = predicciones.find(p => p.alerta_id === alertId);
+  const form = document.getElementById('form-edit-alerta');
+  const inputUnidades = document.getElementById('edit-unidades');
+  const inputVenta = document.getElementById('edit-venta');
+
+  function showError(input, message) {
+    input.classList.add('error');
+    const errorEl = document.getElementById('error-' + input.name.replace('_', '-'));
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    }
+  }
+
+  function showSuccess(input) {
+    input.classList.remove('error');
+    const errorEl = document.getElementById('error-' + input.name.replace('_', '-'));
+    if (errorEl) {
+      errorEl.style.display = 'none';
+    }
+  }
+
+  function limpiarErrores() {
+    inputUnidades.classList.remove('error');
+    inputVenta.classList.remove('error');
+    document.getElementById('error-unidades').style.display = 'none';
+    document.getElementById('error-venta').style.display = 'none';
+  }
+
+  function validarCampo(input) {
+    const val = parseFloat(input.value);
+    if (isNaN(val) || input.value.trim() === '') {
+      showError(input, 'Este campo es obligatorio');
+      return false;
+    }
+    if (val < 0) {
+      showError(input, 'No se permiten valores negativos');
+      return false;
+    }
+    showSuccess(input);
+    return true;
+  }
+
+  // Listeners de entrada
+  inputUnidades.addEventListener('input', () => validarCampo(inputUnidades));
+  inputVenta.addEventListener('input', () => validarCampo(inputVenta));
+
+  // Validación al enviar
+  form.addEventListener('submit', function(e) {
+    const v1 = validarCampo(inputUnidades);
+    const v2 = validarCampo(inputVenta);
     
-    if (pred) {
-      // Actualizar valores en métricas
-      card.querySelector('.val-venta-dia').textContent = pred.venta_dia_real.toFixed(2);
-      
-      const valHoras = card.querySelector('.val-horas-restantes');
-      const valUnidades = card.querySelector('.metric-unidades');
-      
-      if (pred.horas_restantes_real >= 9999) {
-        valHoras.textContent = '∞';
-      } else {
-        valHoras.textContent = `${Math.round(pred.horas_restantes_real)}h`;
-      }
-      
-      // Actualizar clases de colores de métricas según nivel dinámico
-      valHoras.classList.remove('red', 'amber', 'green');
-      valUnidades.classList.remove('red', 'amber', 'green');
-      
-      let levelClass = 'ok';
-      let fillClass = 'fill-green';
-      let iconBg = 'var(--primary-light)';
-      let iconColor = 'var(--primary)';
-      
-      if (pred.nivel_real === 'critico') {
-        levelClass = 'critico';
-        fillClass = 'fill-red';
-        iconBg = 'var(--danger-light)';
-        iconColor = 'var(--danger)';
-        valHoras.classList.add('red');
-        valUnidades.classList.add('red');
-        totalCritico++;
-      } else if (pred.nivel_real === 'urgente') {
-        levelClass = 'urgente';
-        fillClass = 'fill-amber';
-        iconBg = 'var(--warning-light)';
-        iconColor = 'var(--warning)';
-        valHoras.classList.add('amber');
-        valUnidades.classList.add('amber');
-        totalUrgente++;
-      } else {
-        valHoras.classList.add('green');
-        valUnidades.classList.add('green');
-        totalOk++;
-      }
-      
-      // Actualizar clase del card
-      card.className = `alert-card ${levelClass}`;
-      
-      // Actualizar Progress Bar
-      const pct = pred.venta_dia_real > 0 
-        ? Math.min((pred.stock_total / (pred.venta_dia_real * 5)) * 100, 100) 
-        : 100;
-      const progressFill = card.querySelector('.progress-fill');
-      progressFill.className = `progress-fill ${fillClass}`;
-      progressFill.style.width = `${pct}%`;
-      
-      // Actualizar fondo de icono
-      const iconWrap = card.querySelector('.alert-box-icon');
-      iconWrap.style.background = iconBg;
-      iconWrap.querySelector('i').style.color = iconColor;
-      
-      // Guardar horas reales calculadas para ordenamiento
-      card.setAttribute('data-current-horas', pred.horas_restantes_real);
+    if (!v1 || !v2) {
+      e.preventDefault(); // Bloquear envío si no es válido
     }
   });
-  
-  // Re-ordenar tarjetas por horas_restantes_real ascendente
-  cards.sort((a, b) => {
-    const ha = parseFloat(a.getAttribute('data-current-horas')) || 9999;
-    const hb = parseFloat(b.getAttribute('data-current-horas')) || 9999;
-    return ha - hb;
-  });
-  
-  // Re-adjuntar al DOM en orden
-  cards.forEach(card => grid.appendChild(card));
-  
-  // Actualizar Widgets de Totales
-  document.getElementById('stat-critico').textContent = totalCritico;
-  document.getElementById('stat-urgente').textContent = totalUrgente;
-  document.getElementById('stat-ok').textContent = totalOk;
-}
 
-// Restaurar Datos Estáticos Originales al DOM
-function restaurarEstaticos() {
-  const grid = document.getElementById('alertas-grid');
-  const cards = Array.from(grid.querySelectorAll('.alert-card'));
-  
-  cards.forEach(card => {
-    const staticVenta = parseFloat(card.getAttribute('data-static-venta')) || 0;
-    const staticHoras = parseFloat(card.getAttribute('data-static-horas')) || 9999;
-    const staticNivel = card.getAttribute('data-static-nivel');
-    const unidades = parseInt(card.getAttribute('data-unidades')) || 0;
-    
-    card.querySelector('.val-venta-dia').textContent = staticVenta;
-    
-    const valHoras = card.querySelector('.val-horas-restantes');
-    const valUnidades = card.querySelector('.metric-unidades');
-    valHoras.textContent = staticHoras >= 9999 ? '∞' : `${Math.round(staticHoras)}h`;
-    
-    valHoras.classList.remove('red', 'amber', 'green');
-    valUnidades.classList.remove('red', 'amber', 'green');
-    
-    let levelClass = 'ok';
-    let fillClass = 'fill-green';
-    let iconBg = 'var(--primary-light)';
-    let iconColor = 'var(--primary)';
-    
-    if (staticNivel === 'critico') {
-      levelClass = 'critico';
-      fillClass = 'fill-red';
-      iconBg = 'var(--danger-light)';
-      iconColor = 'var(--danger)';
-      valHoras.classList.add('red');
-      valUnidades.classList.add('red');
-    } else if (staticNivel === 'urgente') {
-      levelClass = 'urgente';
-      fillClass = 'fill-amber';
-      iconBg = 'var(--warning-light)';
-      iconColor = 'var(--warning)';
-      valHoras.classList.add('amber');
-      valUnidades.classList.add('amber');
-    } else {
-      valHoras.classList.add('green');
-      valUnidades.classList.add('green');
-    }
-    
-    card.className = `alert-card ${levelClass}`;
-    
-    const pct = staticVenta > 0 ? Math.min((unidades / (staticVenta * 5)) * 100, 100) : 100;
-    const progressFill = card.querySelector('.progress-fill');
-    progressFill.className = `progress-fill ${fillClass}`;
-    progressFill.style.width = `${pct}%`;
-    
-    const iconWrap = card.querySelector('.alert-box-icon');
-    iconWrap.style.background = iconBg;
-    iconWrap.querySelector('i').style.color = iconColor;
-  });
-  
-  // Re-ordenar tarjetas por static-horas ascendente
-  cards.sort((a, b) => {
-    const ha = parseFloat(a.getAttribute('data-static-horas')) || 9999;
-    const hb = parseFloat(b.getAttribute('data-static-horas')) || 9999;
-    return ha - hb;
-  });
-  
-  // Re-adjuntar al DOM
-  cards.forEach(card => grid.appendChild(card));
-  
-  // Restaurar Widgets de Totales
-  document.getElementById('stat-critico').textContent = totalesEstaticos.critico;
-  document.getElementById('stat-urgente').textContent = totalesEstaticos.urgente;
-  document.getElementById('stat-ok').textContent = totalesEstaticos.ok;
-}
-
-function abrirEditar(alertaId, nombreProducto) {
-  showToast(`Gestionando alerta: ${nombreProducto}`, 'warning');
-  window.location.href = `/segmentacion?alerta_id=${alertaId}`;
-}
-
-function confirmarEliminar(alertaId, nombreProducto) {
-  showModal(
-    `¿Deseas descartar la alerta de "${nombreProducto}"?\nEsta acción no se puede deshacer.`,
-    async () => {
-      const exito = await apiDelete(`/api/alertas/${alertaId}`, 'Alerta descartada correctamente');
-      if (exito) {
-        const tarjetaAlerta = document.getElementById(`alerta-${alertaId}`);
-        if (tarjetaAlerta) tarjetaAlerta.remove();
-        
-        // Recargar para actualizar estadísticas de cabecera
-        setTimeout(() => window.location.reload(), 1200);
-      }
-    }
-  );
-}
 </script>
 {% endblock %}
