@@ -13,6 +13,7 @@ from markupsafe import escape
 from bd import obtenerconexion
 
 from tottusAD import (
+    cambiar_clave,
     obtener_stats_dashboard, obtener_alertas_recientes,
     leer_historial, registrar_historial,
     autenticar_usuario,
@@ -242,8 +243,12 @@ def actualizar_alerta_tradicional():
                     cursor.execute("SELECT producto_id FROM alertas_quiebre WHERE id=%s", (alerta_id,))
                     row = cursor.fetchone()
                     if row and row['producto_id']:
-                        registrar_historial(row['producto_id'], 'UPDATE', 'alert_edit', 
-                                            None, None, f'Edición tradicional de alerta {alerta_id}')
+                        registrar_historial(
+                            p_producto_id=row['producto_id'],
+                            p_accion='UPDATE',
+                            p_campo='alert_edit',
+                            p_motivo=f'Edición tradicional de alerta {alerta_id}'
+                        )
                 conn.commit()
         
         # Volver a renderizar la página de alertas (sin redirect)
@@ -706,26 +711,6 @@ def guardar_segmentacion_ruta():
         print(f"Error en guardar_segmentacion: {e}")
         return mostrar_error("Error interno al procesar la segmentación.", 500)
 
-
-@app.route('/segmentacion/editar/<int:seg_id>')
-def editar_segmentacion_vista(seg_id):
-    try:
-        productos_lista = leer_productos() or []
-        segmentaciones  = leer_segmentaciones() or []
-        edit_seg        = leer_segmentacion_por_id(seg_id)
-        return render_template('segmentacion.html',
-                               active_page='productos',
-                               alertas_count=contar_alertas(),
-                               productos=productos_lista,
-                               segmentaciones=segmentaciones,
-                               edit_seg=edit_seg)
-    except Exception as e:
-        print("Error en /segmentacion/editar:", repr(e))
-        return mostrar_error("Error al cargar la segmentacion para edicion.", 500)
-
-
-
-
 @app.route('/actualizar_segmentacion', methods=['POST'])
 def actualizar_segmentacion_ruta():
     try:
@@ -827,7 +812,7 @@ def toggle_segmentacion_ruta(seg_id):
 @app.route("/api_listar_segmentaciones")
 def api_listar_segmentaciones():
     try:
-        resultado = leer_segmentaciones()
+        resultado = obtener_segmentaciones()
         return jsonify(resultado)
     except Exception as e:
         return jsonify({"code": -1, "message": repr(e)})
@@ -836,14 +821,13 @@ def api_listar_segmentaciones():
 def api_guardar_segmentacion():
     try:
         obj = clsSegmentacion(
-            p_producto_id=request.json['producto_id'],
-            p_usuario_id=1, # Manteniendo tu lógica fija de usuario
-            p_stock_cliente_final=request.json['stock_cliente_final'],
-            p_stock_revendedor=request.json['stock_revendedor'],
-            p_limite_compra_final=request.json['limite_compra_final'],
-            p_limite_compra_revendedor=request.json['limite_compra_revendedor'],
-            p_motivo=request.json['motivo']
-        )
+                producto_id=request.json['producto_id'],
+                stock_cliente_final=request.json['stock_cliente_final'],
+                stock_revendedor=request.json['stock_revendedor'],
+                limite_compra_final=request.json['limite_compra_final'],
+                limite_compra_revendedor=request.json['limite_compra_revendedor'],
+                motivo=request.json['motivo']
+            )
         
         if insertar_segmentacion(obj):
             return jsonify({"code": 1, "message": "Segmentación registrada correctamente"})
