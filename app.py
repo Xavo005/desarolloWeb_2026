@@ -7,7 +7,8 @@ import csv
 import io
 import json
 from datetime import datetime
-from flask import Flask, render_template, request, Response
+
+from flask import Flask, render_template, request, Response, jsonify  # type: ignore[import]
 from markupsafe import escape
 from bd import obtenerconexion
 
@@ -25,6 +26,14 @@ from tottusAD import (
     actualizar_trabajador as ad_actualizar_trabajador,
     eliminar_trabajador  as ad_eliminar_trabajador,
 )
+
+from flask import Flask
+try:
+    from routes.api_inventario import api_bp
+except ImportError as e:
+    print(f"Error específico de importación: {e}")
+
+
 
 app = Flask(__name__)
 
@@ -335,34 +344,48 @@ def editar_producto_vista(prod_id):
 
 @app.route('/guardar_producto', methods=['POST'])
 def guardar_producto():
-    sku    = request.form.get('sku', '').strip().upper()
-    nombre = request.form.get('nombre', '').strip()
-    
-    if not sku or not nombre:
-        return "<h1>Error</h1><p>El SKU y el nombre son obligatorios.</p><a href='/productos'>Volver</a>"
-
     try:
-        stock  = int(request.form.get('stock_total', 0))
-        precio = float(request.form.get('precio_unitario', 0))
-        venta  = float(request.form.get('venta_dia', 0))
-    except ValueError:
-        return "<h1>Error</h1><p>Los valores numéricos no son válidos.</p><a href='/productos'>Volver</a>"
+        sku    = request.form.get('sku', '').strip().upper()
+        nombre = request.form.get('nombre', '').strip()
+        categoria = request.form.get('categoria', '').strip()
+        ubicacion = request.form.get('ubicacion_gondola', '').strip()
+        
+        if not sku or not nombre:
+            return mostrar_error("SKU y nombre son obligatorios.")
 
-    obj = clsProducto(
-        p_id=None,
-        p_sku=sku,
-        p_nombre=nombre,
-        p_categoria=request.form.get('categoria', ''),
-        p_stock_total=stock,
-        p_precio_unitario=precio,
-        p_venta_dia=venta,
-        p_ubicacion_gondola=request.form.get('ubicacion_gondola', '')
-    )
+        try:
+            stock  = int(request.form.get('stock_total', 0))
+            precio = float(request.form.get('precio_unitario', 0))
+            venta  = float(request.form.get('venta_dia', 0))
+        except (ValueError, TypeError):
+            return mostrar_error("Valores numéricos inválidos.")
 
-    if insertar_producto(obj):
-        return redirect(url_for('listar_productos'))
-    else:
-        return "<h1>Error</h1><p>No se pudo guardar el producto. Verifique el SKU.</p><a href='/productos'>Volver</a>"
+        if stock < 0 or precio < 0 or venta < 0:
+            return mostrar_error("El stock, precio y venta diaria no pueden ser negativos.")
+
+        obj = clsProducto(
+            p_id=None,
+            p_sku=sku,
+            p_nombre=nombre,
+            p_categoria=categoria,
+            p_stock_total=stock,
+            p_precio_unitario=precio,
+            p_venta_dia=venta,
+            p_ubicacion_gondola=ubicacion
+        )
+
+        
+        if insertar_producto(obj):
+            return mostrar_exito(
+                'Producto registrado correctamente en el catálogo.',
+                '/productos', 'Ver catálogo')
+        
+        return mostrar_error("No se pudo registrar. Es probable que el SKU ya exista.")
+        
+    except Exception as e:
+        print(f"--- ERROR CRÍTICO EN /guardar_producto ---")
+        print(repr(e)) 
+        return mostrar_error("Error interno al registrar el producto.", 500)
 
 
 @app.route('/actualizar_producto', methods=['POST'])
@@ -415,8 +438,37 @@ def eliminar_producto_ruta(prod_id):
     except Exception as e:
         print("Error en /eliminar_producto:", repr(e))
         return mostrar_error("Error interno al desactivar el producto.", 500)
-
-
+    
+# ════════════════════════════════════════════════════════════
+# API — PRODUCTOS - Xavier Ruiz Guevara
+# ════════════════════════════════════════════════════════════
+@app.route("/api_listar_productos")
+def api_listar_productos():
+    try:
+        resultado = leer_productos()
+        return jsonify(resultado)
+    except:
+        return {}
+    
+@app.route("/api_guardar_producto", methods=['POST'])
+def api_guardar_producto():
+    try:
+        objProducto = clsProducto(
+            None,
+            request.json['sku'],
+            request.json['nombre'],
+            request.json['categoria'],
+            request.json['stock_total'],
+            request.json['precio_unitario'],
+            request.json['venta_dia'],
+            request.json['ubicacion_gondola']
+        )
+        if insertar_producto(objProducto):
+            return jsonify({"code": 1, "message": "Producto insertado correctamente"})
+        return jsonify({"code": 0, "data": {}, "message": "Error al insertar producto"})
+    except Exception as e:
+        return jsonify({"code": -1, "data": {}, "message": repr(e)})
+    
 # ════════════════════════════════════════════════════════════
 # API — ESCANER  (Excepcion aprobada: respuestas JSON)
 # ════════════════════════════════════════════════════════════
@@ -490,6 +542,90 @@ def api_crear_conteo():
             mimetype='application/json', status=500)
 
 
+
+
+# ════════════════════════════════════════════════════════════
+# API — HISTORIAL CSV  (EDIEGO CALDERON)
+# ════════════════════════════════════════════════════════════
+print("--- CARGANDO RUTA EXPORTAR ---")
+@app.route('/api/historial/exportar', methods=['GET'])
+def api_exportar_historial():
+    try:
+        conn = obtenerconexion()
+        with conn.cursor() as cursor:
+            # CORRECCIÓN: Usamos 'fecha' que es el nombre real de tu columna
+            cursor.execute("SELECT * FROM historial_ajustes ORDER BY fecha DESC")
+            registros = cursor.fetchall()
+        conn.close()
+
+        si = io.StringIO()
+        cw = csv.writer(si)
+        
+        # Encabezados
+        cw.writerow(['ID', 'Producto ID', 'Accion', 'Campo', 'Anterior', 'Nuevo', 'Motivo', 'Fecha'])
+
+        # CORRECCIÓN: Nombres de columnas actualizados según tu tabla
+        for reg in registros:
+            cw.writerow([
+                reg['id'], 
+                reg['producto_id'], 
+                reg['accion'],           # Antes era 'tipo'
+                reg['campo_modificado'], # Antes era 'campo'
+                reg['valor_anterior'], 
+                reg['valor_nuevo'], 
+                reg['motivo'], 
+                reg['fecha']             # Antes era 'fecha_hora'
+            ])
+
+        output = si.getvalue()
+        return Response(
+            output,
+            mimetype='text/csv',
+            headers={"Content-Disposition": "attachment;filename=historial_inventario.csv"}
+        )
+
+    except Exception as e:
+        print("Error en /api/historial/exportar:", repr(e))
+        return Response(
+            json.dumps({'success': False, 'message': str(e)}),
+            mimetype='application/json', status=500
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # ════════════════════════════════════════════════════════════
 # CRUD — SEGMENTACIONES
 # ════════════════════════════════════════════════════════════
@@ -517,6 +653,7 @@ def segmentacion():
         datos = _obtener_datos_segmentacion()
         return render_template('segmentacion.html', edit_seg=None, **datos)
     except Exception as e:
+
         return render_template('error_500.html'), 500
 
 @app.route('/segmentacion/editar/<int:seg_id>')
@@ -568,6 +705,26 @@ def guardar_segmentacion_ruta():
     except Exception as e:
         print(f"Error en guardar_segmentacion: {e}")
         return mostrar_error("Error interno al procesar la segmentación.", 500)
+
+
+@app.route('/segmentacion/editar/<int:seg_id>')
+def editar_segmentacion_vista(seg_id):
+    try:
+        productos_lista = leer_productos() or []
+        segmentaciones  = leer_segmentaciones() or []
+        edit_seg        = leer_segmentacion_por_id(seg_id)
+        return render_template('segmentacion.html',
+                               active_page='productos',
+                               alertas_count=contar_alertas(),
+                               productos=productos_lista,
+                               segmentaciones=segmentaciones,
+                               edit_seg=edit_seg)
+    except Exception as e:
+        print("Error en /segmentacion/editar:", repr(e))
+        return mostrar_error("Error al cargar la segmentacion para edicion.", 500)
+
+
+
 
 @app.route('/actualizar_segmentacion', methods=['POST'])
 def actualizar_segmentacion_ruta():
@@ -664,6 +821,38 @@ def toggle_segmentacion_ruta(seg_id):
             return render_template('error_500.html'), 500
     except Exception as e:
         return render_template('error_500.html'), 500
+# ════════════════════════════════════════════════════════════
+# AP IS — SEGMENTACIONES Xavier Ruiz Guevara
+# ════════════════════════════════════════════════════════════
+@app.route("/api_listar_segmentaciones")
+def api_listar_segmentaciones():
+    try:
+        resultado = leer_segmentaciones()
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+@app.route("/api_guardar_segmentacion", methods=['POST'])
+def api_guardar_segmentacion():
+    try:
+        obj = clsSegmentacion(
+            p_producto_id=request.json['producto_id'],
+            p_usuario_id=1, # Manteniendo tu lógica fija de usuario
+            p_stock_cliente_final=request.json['stock_cliente_final'],
+            p_stock_revendedor=request.json['stock_revendedor'],
+            p_limite_compra_final=request.json['limite_compra_final'],
+            p_limite_compra_revendedor=request.json['limite_compra_revendedor'],
+            p_motivo=request.json['motivo']
+        )
+        
+        if insertar_segmentacion(obj):
+            return jsonify({"code": 1, "message": "Segmentación registrada correctamente"})
+        
+        return jsonify({"code": 0, "message": "No se pudo registrar. Verifique el stock disponible."})
+        
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)}) 
+
 
 # ════════════════════════════════════════════════════════════
 # ALERTAS

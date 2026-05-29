@@ -9,3 +9,4 @@ def obtenerconexion():
        return connection
    except:
        raise
+
