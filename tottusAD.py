@@ -709,18 +709,13 @@ class clsTrabajador:
 # ════════════════════════════════════════════════════════════
 
 def leer_trabajadores():
-    """
-    Retorna lista de todos los trabajadores activos ordenados por nombre.
-    """
     try:
         conn = obtenerconexion()
         result = None
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql =  " SELECT id, nombre, codigo_empleado, "
-                    sql += "        email, sede, rol, "
-                    sql += "        palabra_clave, activo "
+                    sql =  " SELECT id, nombre, codigo_empleado, email, sede, rol, password_hash, activo "
                     sql += "   FROM usuarios "
                     sql += "  WHERE activo = 1 "
                     sql += "  ORDER BY nombre "
@@ -728,7 +723,7 @@ def leer_trabajadores():
                     result = cursor.fetchall()
         return result
     except Exception as e:
-        print(repr(e))
+        print(f"Error en consulta: {repr(e)}")
         return []
 
 
@@ -880,4 +875,64 @@ def eliminar_trabajador(p_id):
         return False
     except Exception as e:
         print(repr(e))
+        return False
+    
+def leer_conteos():
+    try:
+        conn = obtenerconexion()
+        lista_final = []
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql = """SELECT producto_id, usuario_id, stock_sistema, 
+                                    stock_contado, diferencia, motivo, estado, fecha 
+                             FROM conteos_manuales 
+                             ORDER BY fecha DESC"""
+                    cursor.execute(sql)
+                    result = cursor.fetchall()
+                    
+                    for fila in result:
+                        lista_final.append({
+                            "producto_id": fila[0],
+                            "usuario_id": fila[1],
+                            "stock_sistema": fila[2],
+                            "stock_contado": fila[3],
+                            "diferencia": fila[4],
+                            "motivo": fila[5],
+                            "estado": fila[6],
+                            "fecha": str(fila[7]) 
+                        })
+        return lista_final
+    except Exception as e:
+        print(f"Error en leer_conteos: {repr(e)}")
+        return []
+
+def insertar_conteo(p_conteo):
+    """
+    Inserta un nuevo registro en la tabla conteos_manuales.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql =  " INSERT INTO conteos_manuales "
+                    sql += " (producto_id, usuario_id, stock_sistema, "
+                    sql += "  stock_contado, diferencia, motivo, estado, fecha) "
+                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s, NOW()) "
+                    
+                    cursor.execute(sql, (
+                        p_conteo.producto_id,
+                        p_conteo.usuario_id,
+                        p_conteo.stock_sistema,
+                        p_conteo.stock_contado,
+                        p_conteo.diferencia,
+                        p_conteo.motivo,
+                        p_conteo.estado or 'aplicado'
+                    ))
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(f"Error en insertar_conteo: {repr(e)}")
         return False

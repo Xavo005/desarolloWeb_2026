@@ -26,6 +26,7 @@ from tottusAD import (
     insertar_trabajador  as ad_insertar_trabajador,
     actualizar_trabajador as ad_actualizar_trabajador,
     eliminar_trabajador  as ad_eliminar_trabajador,
+    leer_conteos, insertar_conteo
 )
 
 from flask import Flask
@@ -661,15 +662,6 @@ def segmentacion():
 
         return render_template('error_500.html'), 500
 
-@app.route('/segmentacion/editar/<int:seg_id>')
-def editar_segmentacion_vista(seg_id):
-    try:
-        edit_seg = obtener_segmentacion_xID(seg_id)
-        datos = _obtener_datos_segmentacion()
-        return render_template('segmentacion.html', edit_seg=edit_seg, **datos)
-    except Exception as e:
-        return render_template('error_500.html'), 500
-
 @app.route('/guardar_segmentacion', methods=['POST'])
 def guardar_segmentacion_ruta():
     try:
@@ -807,7 +799,7 @@ def toggle_segmentacion_ruta(seg_id):
     except Exception as e:
         return render_template('error_500.html'), 500
 # ════════════════════════════════════════════════════════════
-# AP IS — SEGMENTACIONES Xavier Ruiz Guevara
+# APIS — SEGMENTACIONES Xavier Ruiz Guevara
 # ════════════════════════════════════════════════════════════
 @app.route("/api_listar_segmentaciones")
 def api_listar_segmentaciones():
@@ -836,6 +828,82 @@ def api_guardar_segmentacion():
         
     except Exception as e:
         return jsonify({"code": -1, "message": repr(e)}) 
+
+
+
+# ════════════════════════════════════════════════════════════
+# APIS — Usuarios  Xav
+# ════════════════════════════════════════════════════════════
+@app.route("/api_listar_usuarios")
+def api_listar_usuarios():
+    try:
+        # Los datos ya vienen como lista de diccionarios, jsonify los entiende directo
+        datos = leer_trabajadores()
+        
+        # Eliminamos el bucle for que causaba el KeyError
+        return jsonify(datos)
+        
+    except Exception as e:
+        return jsonify({"code": -1, "message": f"Error: {repr(e)}"})
+
+@app.route("/api_guardar_usuario", methods=['POST'])
+def api_guardar_usuario():
+    try:
+     
+        obj = clsTrabajador(
+            None,
+            request.json['nombre'],
+            request.json['codigo_empleado'],
+            request.json['email'],
+            request.json['sede'],
+            request.json['rol'],
+            request.json['palabra_clave'],
+            None 
+        )
+
+        if insertar_trabajador(obj):
+            return jsonify({"code": 1, "message": "Trabajador registrado correctamente"})
+        return jsonify({"code": 0, "message": "No se pudo registrar (código duplicado o error)"})
+    
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+# ════════════════════════════════════════════════════════════
+# APIS — Conteos Manuales Xav
+# ════════════════════════════════════════════════════════════
+@app.route("/api_listar_conteos")
+def api_listar_conteos():
+    try:
+        resultado = leer_conteos() 
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+@app.route("/api_guardar_conteo", methods=['POST'])
+def api_guardar_conteo():
+    try:
+        data = request.json
+        obj = clsConteo(
+            None,
+            data['producto_id'],
+            data['usuario_id'],
+            data['stock_sistema'],
+            data['stock_contado'],
+            data['diferencia'],
+            data['motivo'],
+            data.get('estado', 'aplicado')
+        )
+
+        if insertar_conteo(obj):
+            return jsonify({"code": 1, "message": "Conteo registrado con éxito"})
+        return jsonify({"code": 0, "message": "Error al registrar el conteo"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+# ════════════════════════════════════════════════════════════
+# APIS — Historial de Ajustes 
+# ════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
+# APIS — SEGMENTACIONES 
+# ════════════════════════════════════════════════════════════
 
 
 # ════════════════════════════════════════════════════════════
