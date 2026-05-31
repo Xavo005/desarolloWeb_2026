@@ -8,12 +8,12 @@
   <!-- Hero -->
   <div class="card text-center mb-4">
     <div style="width:72px;height:72px;border-radius:50%;background:var(--primary);color:#fff;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
-      {{ session.nombre[0] | upper }}
+      {{ (session.get('nombre') or 'U')[0] | upper }}
     </div>
-    <div style="font-size:20px;font-weight:700">{{ usuario.nombre if usuario else session.nombre }}</div>
-    <div class="text-muted text-sm mt-2">{{ usuario.rol | capitalize if usuario else session.rol }}</div>
+    <div style="font-size:20px;font-weight:700">{{ usuario.nombre if usuario else session.get('nombre') or 'Usuario' }}</div>
+    <div class="text-muted text-sm mt-2">{{ usuario.rol | capitalize if usuario else (session.get('rol') or 'operario') | capitalize }}</div>
     <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
-      <span class="badge badge-green">{{ usuario.codigo_empleado if usuario else session.codigo }}</span>
+      <span class="badge badge-green">{{ usuario.codigo_empleado if usuario else session.get('codigo_empleado') or '---' }}</span>
       <span class="badge badge-amber">Turno Mañana</span>
     </div>
   </div>
@@ -23,7 +23,7 @@
     <div style="font-size:15px;font-weight:600;margin-bottom:12px">
       <i class="fa-solid fa-location-dot" style="color:var(--primary)"></i> Sede Asignada
     </div>
-    <div style="font-size:14px">{{ usuario.sede if usuario else session.sede }}</div>
+    <div style="font-size:14px">{{ usuario.sede if usuario else session.get('sede') or 'Sin asignar' }}</div>
     <div class="text-muted text-sm mt-2">
       <i class="fa-solid fa-store"></i> Zona: Open plaza · Chiclayo
     </div>

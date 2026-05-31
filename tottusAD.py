@@ -1,22 +1,14 @@
-"""
-tottusAD.py — Tottus SGI · Capa de Acceso a Datos
-Reglas estrictas del profesor:
-  - Sin importaciones de Flask.
-  - Conexion via bd.py (from bd import obtenerconexion).
-  - SQL construido con patron: sql = " ... " y sql += " ... "
-  - Sin SELECT *; columnas explicitas en todo SELECT.
-  - Autenticacion: comparacion directa en texto plano (sin werkzeug.security).
-"""
+
 from bd import obtenerconexion
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # CLASES DE ENTIDAD
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # DASHBOARD
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def obtener_stats_dashboard():
     try:
@@ -52,9 +44,9 @@ def obtener_alertas_recientes():
         print(repr(e))
         return []
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # CLASES DE ENTIDAD - PRODUCTO Xavier Ruiz Guevara
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 class clsProducto:
     def __init__(self, p_id=None, p_sku=None, p_nombre=None,
@@ -70,9 +62,9 @@ class clsProducto:
         self.venta_dia        = p_venta_dia
         self.ubicacion_gondola = p_ubicacion_gondola
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # CLASES DE ENTIDAD - USUARIO / TRABAJADOR
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 class clsUsuario:
     def __init__(self, p_id=None, p_codigo_empleado=None,
                  p_nombre=None, p_rol=None,
@@ -85,9 +77,9 @@ class clsUsuario:
         self.activo           = p_activo
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # AUTENTICACION
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def autenticar_usuario(p_codigo, p_password):
     """
@@ -115,9 +107,9 @@ def autenticar_usuario(p_codigo, p_password):
         return None
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # CRUD — PRODUCTOS - Xavier Ruiz Guevara 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def leer_productos(p_busqueda=None):
     """
@@ -344,9 +336,9 @@ def buscar_sku(p_sku):
         return None
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # FUNCION PRIVADA — HISTORIAL
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def _registrar_historial(cursor, producto_id, accion,
                          campo=None, anterior=None, nuevo=None, motivo=None):
@@ -371,9 +363,9 @@ def _registrar_historial(cursor, producto_id, accion,
     ))
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # CLASES DE ENTIDAD — SEGMENTACION Y ALERTA
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 class clsSegmentacion:
     def __init__(self, id=None, producto_id=None, stock_cliente_final=0, 
@@ -400,9 +392,26 @@ class clsAlerta:
         self.venta_dia = venta_dia
         self.estado_transf = estado_transf
 
-# ════════════════════════════════════════════════════════════
+
+# ==============================================================================
+# CLASE DE ENTIDAD — CONTEO MANUAL
+# ==============================================================================
+class clsConteo:
+    def __init__(self, p_id=None, p_producto_id=None, p_usuario_id=None,
+                 p_stock_sistema=None, p_stock_contado=None,
+                 p_diferencia=None, p_motivo=None, p_estado=None):
+        self.id            = p_id
+        self.producto_id   = p_producto_id
+        self.usuario_id    = p_usuario_id
+        self.stock_sistema = p_stock_sistema
+        self.stock_contado = p_stock_contado
+        self.diferencia    = p_diferencia
+        self.motivo        = p_motivo
+        self.estado        = p_estado
+
+# ==============================================================================
 # CRUD — SEGMENTACIONES
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def obtener_segmentaciones():
     try:
@@ -411,12 +420,15 @@ def obtener_segmentaciones():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT s.*, p.nombre, p.sku, p.stock_total
-                        FROM segmentacion_inventario s
-                        JOIN productos p ON s.producto_id = p.id
-                        ORDER BY s.fecha_creacion DESC
-                    """)
+                    sql  = " SELECT s.id, s.producto_id, s.usuario_id, "
+                    sql += "        s.stock_cliente_final, s.stock_revendedor, "
+                    sql += "        s.limite_compra_final, s.limite_compra_revendedor, "
+                    sql += "        s.motivo, s.activo, "
+                    sql += "        p.nombre, p.sku, p.stock_total "
+                    sql += "   FROM segmentacion_inventario s "
+                    sql += "   JOIN productos p ON s.producto_id = p.id "
+                    sql += "  ORDER BY s.fecha_creacion DESC "
+                    cursor.execute(sql)
                     lista = cursor.fetchall()
         return lista
     except Exception as e:
@@ -430,12 +442,15 @@ def obtener_segmentacion_xID(p_seg_id):
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT s.*, p.nombre, p.sku, p.stock_total
-                        FROM segmentacion_inventario s
-                        JOIN productos p ON s.producto_id = p.id
-                        WHERE s.id = %s
-                    """, (p_seg_id,))
+                    sql  = " SELECT s.id, s.producto_id, s.usuario_id, "
+                    sql += "        s.stock_cliente_final, s.stock_revendedor, "
+                    sql += "        s.limite_compra_final, s.limite_compra_revendedor, "
+                    sql += "        s.motivo, s.activo, "
+                    sql += "        p.nombre, p.sku, p.stock_total "
+                    sql += "   FROM segmentacion_inventario s "
+                    sql += "   JOIN productos p ON s.producto_id = p.id "
+                    sql += "  WHERE s.id = %s "
+                    cursor.execute(sql, (p_seg_id,))
                     fila = cursor.fetchone()
         return fila
     except Exception as e:
@@ -514,9 +529,9 @@ def toggle_segmentacion(p_seg_id):
     except Exception as e:
         print(repr(e))
         return False
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # ALERTAS
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def obtener_alertas_activas():
     try:
@@ -525,7 +540,12 @@ def obtener_alertas_activas():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("SELECT * FROM v_alertas_activas")
+                    sql  = " SELECT id, sku, producto, "
+                    sql += "        categoria, nivel, unidades, venta_dia, "
+                    sql += "        horas_restantes, estado_transf, "
+                    sql += "        stock_total, ubicacion_gondola "
+                    sql += "   FROM v_alertas_activas "
+                    cursor.execute(sql)
                     alertas = cursor.fetchall()
         return alertas
     except Exception as e:
@@ -585,9 +605,9 @@ def actualizar_alerta(p_Alerta):
         return False
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # HISTORIAL — FUNCIONES PUBLICAS
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def leer_historial(p_accion=None, p_limite=200):
     """
@@ -647,9 +667,9 @@ def registrar_historial(p_producto_id, p_accion,
         return False
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # SEGURIDAD — CAMBIO DE CONTRASEÑA
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def cambiar_clave(p_usuario_id, p_clave_actual, p_nueva_clave):
     """
@@ -685,9 +705,9 @@ def cambiar_clave(p_usuario_id, p_clave_actual, p_nueva_clave):
 
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # CLASE DE ENTIDAD — TRABAJADOR
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 class clsTrabajador:
     def __init__(self, p_id=None, p_nombre=None, p_codigo_empleado=None,
@@ -704,9 +724,9 @@ class clsTrabajador:
         self.activo           = p_activo
 
 
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 # CRUD — TRABAJADORES / PERSONAL
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
 
 def leer_trabajadores():
     try:
@@ -738,8 +758,7 @@ def leer_trabajador_por_id(p_id):
             with conn:
                 with conn.cursor() as cursor:
                     sql =  " SELECT id, nombre, codigo_empleado, "
-                    sql += "        email, sede, rol, "
-                    sql += "        palabra_clave, activo "
+                    sql += "        email, sede, rol, activo "
                     sql += "   FROM usuarios "
                     sql += "  WHERE id = %s "
                     cursor.execute(sql, (p_id,))
@@ -884,27 +903,26 @@ def leer_conteos():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql = """SELECT producto_id, usuario_id, stock_sistema, 
-                                    stock_contado, diferencia, motivo, estado, fecha 
-                             FROM conteos_manuales 
-                             ORDER BY fecha DESC"""
+                    sql  = " SELECT producto_id, usuario_id, stock_sistema, "
+                    sql += "        stock_contado, diferencia, motivo, estado, fecha "
+                    sql += "   FROM conteos_manuales "
+                    sql += "  ORDER BY fecha DESC "
                     cursor.execute(sql)
                     result = cursor.fetchall()
-                    
                     for fila in result:
                         lista_final.append({
-                            "producto_id": fila[0],
-                            "usuario_id": fila[1],
-                            "stock_sistema": fila[2],
-                            "stock_contado": fila[3],
-                            "diferencia": fila[4],
-                            "motivo": fila[5],
-                            "estado": fila[6],
-                            "fecha": str(fila[7]) 
+                            "producto_id":   fila['producto_id'],
+                            "usuario_id":    fila['usuario_id'],
+                            "stock_sistema": fila['stock_sistema'],
+                            "stock_contado": fila['stock_contado'],
+                            "diferencia":    fila['diferencia'],
+                            "motivo":        fila['motivo'],
+                            "estado":        fila['estado'],
+                            "fecha":         str(fila['fecha'])
                         })
         return lista_final
     except Exception as e:
-        print(f"Error en leer_conteos: {repr(e)}")
+        print(repr(e))
         return []
 
 def insertar_conteo(p_conteo):
@@ -934,5 +952,88 @@ def insertar_conteo(p_conteo):
             return True
         return False
     except Exception as e:
-        print(f"Error en insertar_conteo: {repr(e)}")
+        print(repr(e))
         return False
+
+
+# ==============================================================================
+# CONTEOS MANUALES — ESCANER (Regla de 3 capas)
+# ==============================================================================
+
+def insertar_conteo_manual(p_prod_id, p_contado, p_motivo=''):
+    """
+    Registra un conteo manual desde el escaner:
+    1. Verifica que el producto exista.
+    2. Inserta en conteos_manuales.
+    3. Actualiza stock_total del producto.
+    4. Registra en historial_ajustes.
+    Retorna (True, stock_anterior) o (False, None).
+    """
+    try:
+        conn = obtenerconexion()
+        if not conn:
+            return False, None
+        with conn:
+            with conn.cursor() as cursor:
+                sql  = " SELECT stock_total FROM productos "
+                sql += "  WHERE id = %s AND activo = 1 "
+                cursor.execute(sql, (p_prod_id,))
+                prod = cursor.fetchone()
+                if not prod:
+                    return False, None
+
+                stock_anterior = prod['stock_total']
+
+                sql  = " INSERT INTO conteos_manuales "
+                sql += "   (producto_id, usuario_id, stock_sistema, "
+                sql += "    stock_contado, motivo, estado) "
+                sql += " VALUES (%s, %s, %s, %s, %s, 'aplicado') "
+                cursor.execute(sql, (
+                    p_prod_id, 1, stock_anterior,
+                    int(p_contado), p_motivo
+                ))
+
+                sql  = " UPDATE productos "
+                sql += "    SET stock_total = %s "
+                sql += "  WHERE id = %s "
+                cursor.execute(sql, (int(p_contado), p_prod_id))
+
+                _registrar_historial(
+                    cursor, p_prod_id, 'CONTEO',
+                    campo='stock_total',
+                    anterior=stock_anterior,
+                    nuevo=p_contado,
+                    motivo=p_motivo or 'Conteo manual desde escaner'
+                )
+            conn.commit()
+        return True, stock_anterior
+    except Exception as e:
+        print(repr(e))
+        return False, None
+
+
+# ==============================================================================
+# UTILIDADES — CONTEO DE ALERTAS (movida desde app.py)
+# ==============================================================================
+
+def contar_alertas():
+    """
+    Retorna el numero de alertas activas de nivel critico o urgente.
+    Centralizada aqui para cumplir la regla de 3 capas.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql  = " SELECT COUNT(*) AS n "
+                    sql += "   FROM alertas_quiebre "
+                    sql += "  WHERE activo = 1 "
+                    sql += "    AND nivel IN ('critico', 'urgente') "
+                    cursor.execute(sql)
+                    row = cursor.fetchone()
+                    return row['n'] if row else 0
+        return 0
+    except Exception as e:
+        print(repr(e))
+        return 0

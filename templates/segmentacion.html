@@ -132,7 +132,8 @@
                   <a href="/toggle_segmentacion/{{ s.id }}" class="btn-secondary" title="Alternar Estado" style="padding: 4px 8px; text-decoration: none; font-size: 11px;">
                     {% if s.activo %}Desactivar{% else %}Activar{% endif %}
                   </a>
-                  <a href="/eliminar_segmentacion/{{ s.id }}" class="btn-delete" title="Eliminar regla" style="padding: 4px 8px; text-decoration: none; color: #d93025; background: transparent;" onclick="return confirm('¿Deseas eliminar la regla de segmentación para &quot;{{ s.nombre }}&quot;?');">
+                  <a href="#" class="btn-delete" title="Eliminar regla" style="padding: 4px 8px; text-decoration: none; color: #d93025; background: transparent;"
+                     onclick="showModal('Eliminar la regla de segmentacion para &quot;{{ s.nombre }}&quot;', function(){ window.location.href='/eliminar_segmentacion/{{ s.id }}'; }); return false;">
                     <i class="fa-solid fa-trash"></i>
                   </a>
                 </td>

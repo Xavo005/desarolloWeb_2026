@@ -8,7 +8,7 @@
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px">
     <h2 style="font-size:20px; font-weight:700; color:var(--text)">Personal Registrado</h2>
     
-    {% if session.rol in ['gerente', 'tecnico'] %}
+    {% if session.get('rol') in ['gerente', 'tecnico'] %}
       <a href="{{ url_for('vista_agregar_trabajador') }}" class="btn-primary" style="text-decoration:none; display:inline-flex; align-items:center; gap:6px">
         <i class="fa-solid fa-user-plus"></i> Registrar Trabajador
       </a>
@@ -48,8 +48,12 @@
                 <i class="fa-solid fa-pen-to-square"></i>
               </a>
               
-              {% if session.rol in ['gerente', 'tecnico'] %}
-                <a href="{{ url_for('eliminar_trabajador', id=t.id) }}" style="color:var(--danger); font-size:16px" title="Eliminar" onclick="return confirm('¿Seguro que deseas eliminar a este trabajador?');">
+              {% if session.get('rol') in ['gerente', 'tecnico'] %}
+                <a href="#"
+                   data-url="{{ url_for('eliminar_trabajador', id=t.id) }}"
+                   data-nombre="{{ t.nombre }}"
+                   style="color:var(--danger); font-size:16px" title="Eliminar"
+                   class="btn-eliminar-trabajador">
                   <i class="fa-solid fa-trash-can"></i>
                 </a>
               {% endif %}
@@ -63,3 +67,21 @@
   </div>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+// Conectar botones de eliminar al modal de confirmacion Tottus
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.btn-eliminar-trabajador').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var url    = btn.getAttribute('data-url');
+      var nombre = btn.getAttribute('data-nombre');
+      showModal('Eliminar al trabajador ' + nombre, function() {
+        window.location.href = url;
+      });
+    });
+  });
+});
+</script>
+{% endblock %}
