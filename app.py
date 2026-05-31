@@ -8,7 +8,7 @@ import io
 import json
 from datetime import datetime
 
-from flask import Flask, render_template, request, Response, jsonify  # type: ignore[import]
+from flask import Flask, render_template, request, Response, jsonify, stream_with_context  # type: ignore[import]
 from markupsafe import escape
 from bd import obtenerconexion
 
@@ -270,21 +270,20 @@ def eliminar_alerta_ruta(alerta_id):
         return render_template('error_500.html'), 500
 
 # ==============================================================================
-# HISTORIAL
+# HISTORIAL-DIEGO CALDERON
 # ==============================================================================
+@app.context_processor
+def inject_alertas():
+    return dict(alertas_count=contar_alertas())
+
 @app.route('/historial')
 def historial():
-    registros = []
-    try:
-        resultado = leer_historial(p_limite=100)
-        if resultado:
-            registros = resultado
-    except Exception:
-        pass
-
-    return render_template('historial.html',
-                           active_page='dashboard',
-                           alertas_count=contar_alertas(),
+    # Simplificamos al máximo: si la función falla, devolvemos lista vacía directamente
+    # Esto elimina el try/except innecesario dentro de la ruta--CAMBIO -1.1
+    registros = leer_historial(p_limite=100) or []
+    
+    return render_template('historial.html', 
+                           active_page='dashboard', 
                            registros=registros)
 
 
@@ -551,51 +550,54 @@ def api_crear_conteo():
 
 
 # ════════════════════════════════════════════════════════════
-# API — HISTORIAL CSV  (EDIEGO CALDERON)
+# API — HISTORIAL CSV  (DIEGO CALDERON)
 # ════════════════════════════════════════════════════════════
-print("--- CARGANDO RUTA EXPORTAR ---")
 @app.route('/api/historial/exportar', methods=['GET'])
 def api_exportar_historial():
-    try:
-        conn = obtenerconexion()
-        with conn.cursor() as cursor:
-            # CORRECCIÓN: Usamos 'fecha' que es el nombre real de tu columna
-            cursor.execute("SELECT * FROM historial_ajustes ORDER BY fecha DESC")
-            registros = cursor.fetchall()
-        conn.close()
-
-        si = io.StringIO()
-        cw = csv.writer(si)
+    def generate():
+        # Buffer de memoria
+        data = io.StringIO()
+        writer = csv.writer(data)
         
-        # Encabezados
-        cw.writerow(['ID', 'Producto ID', 'Accion', 'Campo', 'Anterior', 'Nuevo', 'Motivo', 'Fecha'])
+        # Cabeceras
+        writer.writerow(['ID', 'Producto ID', 'Accion', 'Campo', 'Anterior', 'Nuevo', 'Motivo', 'Fecha'])
+        yield data.getvalue()
+        data.seek(0)
+        data.truncate(0)
 
-        # CORRECCIÓN: Nombres de columnas actualizados según tu tabla
-        for reg in registros:
-            cw.writerow([
-                reg['id'], 
-                reg['producto_id'], 
-                reg['accion'],           # Antes era 'tipo'
-                reg['campo_modificado'], # Antes era 'campo'
-                reg['valor_anterior'], 
-                reg['valor_nuevo'], 
-                reg['motivo'], 
-                reg['fecha']             # Antes era 'fecha_hora'
-            ])
+        conn = obtenerconexion()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, producto_id, accion, campo_modificado, 
+                           valor_anterior, valor_nuevo, motivo, fecha 
+                    FROM historial_ajustes ORDER BY fecha DESC
+                """)
+                
+                for reg in cursor:
+                    # Usamos dict.get para evitar KeyError si falta alguna columna
+                    writer.writerow([
+                        reg.get('id'), 
+                        reg.get('producto_id'), 
+                        reg.get('accion'), 
+                        reg.get('campo_modificado') or 'N/A', 
+                        reg.get('valor_anterior') or '-', 
+                        reg.get('valor_nuevo') or '-', 
+                        reg.get('motivo'), 
+                        reg.get('fecha')
+                    ])
+                    yield data.getvalue()
+                    data.seek(0)
+                    data.truncate(0)
+        finally:
+            conn.close()
 
-        output = si.getvalue()
-        return Response(
-            output,
-            mimetype='text/csv',
-            headers={"Content-Disposition": "attachment;filename=historial_inventario.csv"}
-        )
-
-    except Exception as e:
-        print("Error en /api/historial/exportar:", repr(e))
-        return Response(
-            json.dumps({'success': False, 'message': str(e)}),
-            mimetype='application/json', status=500
-        )
+    # Retorno directo de la respuesta de streaming
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/csv',
+        headers={"Content-Disposition": "attachment;filename=historial_inventario.csv"}
+    )
 
 
 

@@ -90,28 +90,30 @@ class clsUsuario:
 # ════════════════════════════════════════════════════════════
 
 def autenticar_usuario(p_codigo, p_password):
-    """
-    Busca al usuario por codigo_empleado y compara la contrasena
-    directamente en texto plano (sin werkzeug.security).
-    Retorna un dict con los datos del usuario o None si falla.
-    """
     try:
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql =  " SELECT id, codigo_empleado, nombre, rol, password_hash "
-                    sql += "   FROM usuarios "
-                    sql += "  WHERE codigo_empleado = %s "
-                    sql += "    AND password_hash = %s "
-                    sql += "    AND activo = 1 "
-                    cursor.execute(sql, (p_codigo, p_password))
+                    # 1. Consulta SQL limpia
+                    sql = "SELECT id, codigo_empleado, nombre, rol, password_hash FROM usuarios WHERE codigo_empleado = %s AND activo = 1"
+                    cursor.execute(sql, (p_codigo,))
                     usuario = cursor.fetchone()
+                    
                     if usuario:
-                        return dict(usuario)
+                        # 2. Convertimos a diccionario si es una tupla
+                        # Esto soluciona el KeyError porque siempre tendremos acceso por nombre
+                        if not isinstance(usuario, dict):
+                            # Si es tupla, mapeamos los valores a los nombres de columna
+                            columnas = ['id', 'codigo_empleado', 'nombre', 'rol', 'password_hash']
+                            usuario = dict(zip(columnas, usuario))
+                        
+                        # 3. Comparamos contraseña en texto plano (como pediste)
+                        if usuario['password_hash'] == p_password:
+                            return usuario
         return None
     except Exception as e:
-        print(repr(e))
+        print("Error en autenticación:", repr(e))
         return None
 
 
