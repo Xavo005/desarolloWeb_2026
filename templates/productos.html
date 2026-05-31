@@ -151,9 +151,11 @@
                   <a href="/productos/editar/{{ p.id }}" class="btn-edit" title="Editar" style="padding: 4px 8px; text-decoration: none; color: #1a73e8; background: transparent;">
                     <i class="fa-solid fa-pen"></i>
                   </a>
-                  <a href="/eliminar_producto/{{ p.id }}" class="btn-delete" title="Eliminar" style="padding: 4px 8px; text-decoration: none; color: #d93025; background: transparent;" onclick="return confirm('¿Desactivar el producto &quot;{{ p.nombre }}&quot; del catálogo?');">
+                  <a href="#" class="btn-delete" title="Eliminar" style="padding: 4px 8px; text-decoration: none; color: #d93025; background: transparent;"
+                     onclick="showModal('Desactivar el producto &quot;{{ p.nombre }}&quot; del catalogo', function(){ document.getElementById('form-del-prod-{{ p.id }}').submit(); }); return false;">
                     <i class="fa-solid fa-trash"></i>
                   </a>
+                  <form id="form-del-prod-{{ p.id }}" action="/eliminar_producto/{{ p.id }}" method="POST" style="display:none"></form>
                 </td>
               </tr>
             {% endfor %}

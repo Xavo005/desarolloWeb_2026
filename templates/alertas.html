@@ -136,7 +136,9 @@
           <button class="btn-edit" onclick="abrirEditar({{ a.id }}, '{{ a.producto }}', {{ a.unidades }}, {{ a.venta_dia }}, '{{ a.estado_transf }}')">
             <i class="fa-solid fa-pen"></i> Editar
           </button>
-          <a href="{{ url_for('eliminar_alerta_ruta', alerta_id=a.id) }}" class="btn-delete" style="text-decoration:none" onclick="return confirm('¿Deseas descartar la alerta de {{ a.producto }}?');">
+          <a href="#" class="btn-delete btn-eliminar-alerta" style="text-decoration:none"
+             data-url="{{ url_for('eliminar_alerta_ruta', alerta_id=a.id) }}"
+             data-nombre="{{ a.producto }}">
             <i class="fa-solid fa-trash"></i> Eliminar
           </a>
         </div>
@@ -279,6 +281,18 @@
     if (!v1 || !v2) {
       e.preventDefault(); // Bloquear envío si no es válido
     }
+  });
+
+  // Handler para botones de eliminar alerta con modal Tottus
+  document.querySelectorAll('.btn-eliminar-alerta').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      var url    = btn.getAttribute('data-url');
+      var nombre = btn.getAttribute('data-nombre');
+      showModal('Descartar la alerta de ' + nombre, function() {
+        window.location.href = url;
+      });
+    });
   });
 
 </script>

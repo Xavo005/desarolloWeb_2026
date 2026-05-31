@@ -22,8 +22,8 @@
   {'id': 'escanear', 'label': 'Escanear', 'icon': 'fa-qrcode', 'url': url_for('escanear')}
 ] -%}
 
-{# Agregamos "Personal" SOLO si es Gerente o Técnico (Ícono de Fotocheck) #}
-{%- if session.rol in ['gerente', 'tecnico'] -%}
+{# Agregamos "Personal" SOLO si es Gerente o Tecnico (Icono de Fotocheck) #}
+{%- if session.get('rol') in ['gerente', 'tecnico'] -%}
   {%- set base_nav = base_nav + [{'id': 'trabajadores', 'label': 'Personal', 'icon': 'fa-id-card', 'url': url_for('listar_trabajadores')}] -%}
 {%- endif -%}
 
@@ -37,7 +37,7 @@
   ('escanear',  'Escanear', 'fa-qrcode', url_for('escanear'))
 ] -%}
 
-{%- if session.rol in ['gerente', 'tecnico'] -%}
+{%- if session.get('rol') in ['gerente', 'tecnico'] -%}
   {%- set base_tab = base_tab + [('trabajadores', 'Personal', 'fa-id-card', url_for('listar_trabajadores'))] -%}
 {%- endif -%}
 
@@ -95,12 +95,12 @@
     {% endfor %}
   </nav>
   <div class="sb-user">
-    <div class="sb-avatar">{{ session.nombre[0] | upper if session.nombre else 'U' }}</div>
+    <div class="sb-avatar">{{ (session.get('nombre') or 'U')[0] | upper }}</div>
     <div class="sb-user-info">
-      <span class="sb-user-name">{{ session.nombre }}</span>
-      <span class="sb-user-role">{{ session.rol | capitalize }}</span>
+      <span class="sb-user-name">{{ session.get('nombre') or 'Usuario' }}</span>
+      <span class="sb-user-role">{{ (session.get('rol') or 'operario') | capitalize }}</span>
     </div>
-    <a href="{{ url_for('logout') }}" class="sb-logout" title="Cerrar sesión">
+    <a href="{{ url_for('logout') }}" class="sb-logout" title="Cerrar sesion">
       <i class="fa-solid fa-arrow-right-from-bracket"></i>
     </a>
   </div>
@@ -142,18 +142,63 @@
 <!-- ══════════ TOAST CONTAINER ══════════ -->
 <div id="toast-container" aria-live="polite"></div>
 
-<!-- ══════════ MODAL CONFIRMACIÓN ELIMINAR ══════════ -->
+<!-- MODAL CONFIRMACION ELIMINAR - Estilo Tottus -->
 <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal-card">
-    <div class="modal-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-    <h3 class="modal-title">¿Confirmar eliminación?</h3>
-    <p class="modal-msg" id="modal-msg">Esta acción no se puede deshacer.</p>
-    <div class="modal-actions">
-      <button class="btn-secondary" id="modal-cancel">Cancelar</button>
-      <button class="btn-danger"    id="modal-confirm">Sí, eliminar</button>
+    <div class="modal-icon" style="background:#fff3cd;color:#856404;width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+    </div>
+    <h3 class="modal-title" style="font-size:18px;font-weight:700;color:#1a1a2e;text-align:center;margin-bottom:8px">Confirmar eliminacion</h3>
+    <p class="modal-msg" id="modal-msg" style="font-size:14px;color:#6b7280;text-align:center;margin-bottom:24px">Esta accion no se puede deshacer.</p>
+    <div class="modal-actions" style="display:flex;gap:12px;justify-content:center">
+      <button class="btn-modal-no"  id="modal-cancel">NO, Cancelar</button>
+      <button class="btn-modal-si"  id="modal-confirm">SI, Eliminar</button>
     </div>
   </div>
 </div>
+
+<style>
+/* ── Modal de confirmacion estilo Tottus ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.hidden { display: none; }
+.modal-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 32px 28px;
+  max-width: 360px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  animation: modalIn 0.22s ease;
+}
+@keyframes modalIn {
+  from { transform: scale(0.9); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+.btn-modal-no {
+  flex: 1;
+  padding: 13px 20px;
+  background: #f3f4f6;
+  color: #374151;
+  border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-modal-no:hover { background: #e5e7eb; }
+.btn-modal-si {
+  flex: 1;
+  padding: 13px 20px;
+  background: #006b3f;
+  color: #fff;
+  border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 600;
+  cursor: pointer; transition: background 0.2s;
+}
+.btn-modal-si:hover { background: #005230; }
+</style>
 
 <!-- ══════════ NOTIFICATION DROPDOWN ══════════ -->
 <div id="notif-dropdown" class="notif-dropdown hidden">

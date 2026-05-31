@@ -93,20 +93,24 @@ function buscarManual() {
   buscarProducto(sku);
 }
 
-// ── BUSCAR EN BACKEND ─────────────────────────────────────
+// ── BUSCAR EN BACKEND (POST /api_buscar_sku - Sesion 15) ──
 async function buscarProducto(sku) {
   showToast(`Buscando SKU: ${sku}…`, 'success', 1500);
 
   let data;
   try {
-    const r = await fetch(`/api/productos/buscar-sku/${encodeURIComponent(sku)}`);
+    const r = await fetch('/api_buscar_sku', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ sku: sku }),
+    });
     data = await r.json();
   } catch {
-    showToast('Error de conexión', 'error');
+    showToast('Error de conexion con el servidor', 'error');
     return;
   }
 
-  // Detener cámara al mostrar resultado
+  // Detener camara al mostrar resultado
   detenerEscaner();
 
   const sec = document.getElementById('result-section');
@@ -114,18 +118,21 @@ async function buscarProducto(sku) {
   const noe = document.getElementById('result-no-encontrado');
   sec.style.display = 'block';
 
-  if (data.success && data.data) {
-    const p = data.data;
+  // La API retorna el dict del producto directamente, o null si no existe
+  // Soportar ambos formatos: {success, data} y dict directo
+  const p = (data && data.data) ? data.data : (data && data.id ? data : null);
+
+  if (p && p.id) {
     enc.style.display = 'block';
     noe.style.display = 'none';
 
-    document.getElementById('r-nombre').textContent    = p.nombre;
-    document.getElementById('r-sku').textContent       = p.sku;
-    document.getElementById('r-categoria').textContent = p.categoria || 'Sin categoría';
-    document.getElementById('r-stock').textContent     = p.stock_total;
-    document.getElementById('r-venta').textContent     = p.venta_dia || '—';
+    document.getElementById('r-nombre').textContent    = p.nombre    || '—';
+    document.getElementById('r-sku').textContent       = p.sku       || sku;
+    document.getElementById('r-categoria').textContent = p.categoria || 'Sin categoria';
+    document.getElementById('r-stock').textContent     = (p.stock_total !== undefined) ? p.stock_total : '—';
+    document.getElementById('r-venta').textContent     = p.venta_dia  || '—';
     document.getElementById('r-horas').textContent     = p.horas_restantes
-      ? (p.horas_restantes >= 9999 ? '∞' : p.horas_restantes + 'h')
+      ? (p.horas_restantes >= 9999 ? 'inf' : p.horas_restantes + 'h')
       : '—';
     document.getElementById('aj-producto-id').value   = p.id;
     document.getElementById('aj-contado').value        = '';
@@ -136,7 +143,7 @@ async function buscarProducto(sku) {
     if (p.alerta_nivel && p.alerta_nivel !== 'ok') {
       document.getElementById('r-alerta-msg').textContent =
         p.alerta_nivel === 'critico'
-          ? `⚠️ QUIEBRE CRÍTICO — Quedan menos de 24h de stock`
+          ? 'QUIEBRE CRITICO - Quedan menos de 24h de stock'
           : `Alerta activa: nivel "${p.alerta_nivel}"`;
       banner.classList.remove('hidden');
     } else {
@@ -159,20 +166,28 @@ async function registrarConteo() {
   const motivo   = document.getElementById('aj-motivo').value.trim();
 
   if (!prodId) { showToast('Error: producto no identificado', 'error'); return; }
-  if (isNaN(contado) || contado < 0) { showToast('Ingresa una cantidad válida (≥ 0)', 'warning'); return; }
+  if (isNaN(contado) || contado < 0) { showToast('Ingresa una cantidad valida (>= 0)', 'warning'); return; }
 
-  const result = await apiPost('/api/conteos', {
-    producto_id: +prodId,
-    stock_contado: contado,
-    motivo,
-  }, 'Conteo registrado correctamente');
+  let data;
+  try {
+    const r = await fetch('/api/conteos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ producto_id: +prodId, stock_contado: contado, motivo })
+    });
+    data = await r.json();
+  } catch {
+    showToast('Error de conexion con el servidor', 'error');
+    return;
+  }
 
-  if (result) {
-    // Actualizar el valor de stock en pantalla
+  if (data && data.code === 1) {
     document.getElementById('r-stock').textContent = contado;
     document.getElementById('aj-contado').value = '';
     document.getElementById('aj-motivo').value  = '';
-    showToast('Historial actualizado ✓', 'success');
+    showToast('Conteo registrado correctamente', 'success');
+  } else {
+    showToast((data && data.message) ? data.message : 'Error al registrar el conteo', 'error');
   }
 }
 
