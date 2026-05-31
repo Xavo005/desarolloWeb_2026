@@ -791,15 +791,14 @@ def insertar_trabajador(p_trabajador):
 
                     sql  = " INSERT INTO `usuarios` "
                     sql += "   (`nombre`, `codigo_empleado`, `email`, "
-                    sql += "    `sede`, `rol`, `palabra_clave`, `password_hash`) "
-                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                    sql += "    `sede`, `rol`, `password_hash`) "
+                    sql += " VALUES (%s, %s, %s, %s, %s, %s) "
                     cursor.execute(sql, (
                         p_trabajador.nombre,
                         p_trabajador.codigo_empleado,
                         p_trabajador.email or '',
                         p_trabajador.sede or '',
                         p_trabajador.rol or 'operario',
-                        p_trabajador.palabra_clave or '',
                         password_inicial,
                     ))
                 conn.commit()
@@ -841,8 +840,7 @@ def actualizar_trabajador(p_trabajador):
                     sql += "        `codigo_empleado` = %s, "
                     sql += "        `email` = %s, "
                     sql += "        `sede` = %s, "
-                    sql += "        `rol` = %s, "
-                    sql += "        `palabra_clave` = %s "
+                    sql += "        `rol` = %s "
                     sql += "  WHERE `id` = %s "
                     cursor.execute(sql, (
                         p_trabajador.nombre,
@@ -850,7 +848,6 @@ def actualizar_trabajador(p_trabajador):
                         p_trabajador.email or '',
                         p_trabajador.sede or '',
                         p_trabajador.rol or 'operario',
-                        p_trabajador.palabra_clave or '',
                         p_trabajador.id,
                     ))
 

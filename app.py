@@ -627,7 +627,7 @@ def _obtener_datos_segmentacion():
         'segmentaciones': segmentaciones,
         'productos': productos_lista,
         'alertas_count': alertas_count,
-        'active_page': 'productos'
+        'active_page': 'segmentacion'
     }
 
 
@@ -637,6 +637,19 @@ def segmentacion():
         datos = _obtener_datos_segmentacion()
         return render_template('segmentacion.html', edit_seg=None, **datos)
     except Exception as e:
+        return render_template('error_500.html'), 500
+
+
+@app.route('/segmentacion/editar/<int:seg_id>')
+def editar_segmentacion_vista(seg_id):
+    try:
+        edit_seg = obtener_segmentacion_xID(seg_id)
+        if not edit_seg:
+            return mostrar_error('Segmentacion no encontrada.', 404)
+        datos = _obtener_datos_segmentacion()
+        return render_template('segmentacion.html', edit_seg=edit_seg, **datos)
+    except Exception as e:
+        print(f'Error en /segmentacion/editar: {repr(e)}')
         return render_template('error_500.html'), 500
 
 
@@ -1245,14 +1258,14 @@ def restablecer():
                 return render_template('restablecer.html',
                                        error='Codigo de empleado no encontrado.')
 
-            # Cambiar clave usando palabra_clave como verificacion de identidad
+            # Usar la contrasena actual como verificacion de identidad para el restablecimiento
             if cambiar_clave(usuario_id, clave_sec, clave_nva):
                 return mostrar_exito(
                     'Contrasena restablecida correctamente.',
                     '/', 'Ir al Login')
             else:
                 return render_template('restablecer.html',
-                                       error='No se pudo restablecer. Verifique su palabra clave de seguridad.')
+                                       error='No se pudo restablecer. Verifique su contrasena actual.')
         except Exception as e:
             print("Error en /restablecer:", repr(e))
             return render_template('restablecer.html',

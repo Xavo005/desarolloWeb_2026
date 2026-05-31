@@ -166,20 +166,28 @@ async function registrarConteo() {
   const motivo   = document.getElementById('aj-motivo').value.trim();
 
   if (!prodId) { showToast('Error: producto no identificado', 'error'); return; }
-  if (isNaN(contado) || contado < 0) { showToast('Ingresa una cantidad válida (≥ 0)', 'warning'); return; }
+  if (isNaN(contado) || contado < 0) { showToast('Ingresa una cantidad valida (>= 0)', 'warning'); return; }
 
-  const result = await apiPost('/api/conteos', {
-    producto_id: +prodId,
-    stock_contado: contado,
-    motivo,
-  }, 'Conteo registrado correctamente');
+  let data;
+  try {
+    const r = await fetch('/api/conteos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ producto_id: +prodId, stock_contado: contado, motivo })
+    });
+    data = await r.json();
+  } catch {
+    showToast('Error de conexion con el servidor', 'error');
+    return;
+  }
 
-  if (result) {
-    // Actualizar el valor de stock en pantalla
+  if (data && data.code === 1) {
     document.getElementById('r-stock').textContent = contado;
     document.getElementById('aj-contado').value = '';
     document.getElementById('aj-motivo').value  = '';
-    showToast('Historial actualizado ✓', 'success');
+    showToast('Conteo registrado correctamente', 'success');
+  } else {
+    showToast((data && data.message) ? data.message : 'Error al registrar el conteo', 'error');
   }
 }
 
