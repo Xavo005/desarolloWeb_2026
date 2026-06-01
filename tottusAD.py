@@ -87,27 +87,28 @@ def autenticar_usuario(p_codigo, p_password):
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    # 1. Consulta SQL limpia
-                    sql = "SELECT id, codigo_empleado, nombre, rol, password_hash FROM usuarios WHERE codigo_empleado = %s AND activo = 1"
+                    # 1. Consulta SQL corregida con 'password' y 'sede' apuntando a 'usuarios'
+                    sql = """
+                        SELECT id, codigo_empleado, nombre, rol, password, sede 
+                        FROM usuarios 
+                        WHERE codigo_empleado = %s AND activo = 1
+                    """
                     cursor.execute(sql, (p_codigo,))
                     usuario = cursor.fetchone()
                     
                     if usuario:
-                        # 2. Convertimos a diccionario si es una tupla
-                        # Esto soluciona el KeyError porque siempre tendremos acceso por nombre
+                        # 2. Convertimos a diccionario si el conector devuelve una tupla
                         if not isinstance(usuario, dict):
-                            # Si es tupla, mapeamos los valores a los nombres de columna
-                            columnas = ['id', 'codigo_empleado', 'nombre', 'rol', 'password_hash']
+                            columnas = ['id', 'codigo_empleado', 'nombre', 'rol', 'password', 'sede']
                             usuario = dict(zip(columnas, usuario))
                         
-                        # 3. Comparamos contraseña en texto plano (como pediste)
-                        if usuario['password_hash'] == p_password:
+                        # 3. Comparamos contra la columna real 'password' en texto plano
+                        if usuario['password'] == p_password:
                             return usuario
         return None
     except Exception as e:
         print("Error en autenticación:", repr(e))
         return None
-
 
 # ==============================================================================
 # CRUD — PRODUCTOS - Xavier Ruiz Guevara 
@@ -668,233 +669,9 @@ def registrar_historial(p_producto_id, p_accion,
         print(repr(e))
         return False
 
-
 # ==============================================================================
-# SEGURIDAD — CAMBIO DE CONTRASEÑA
+# FUNCIONES CONTEO
 # ==============================================================================
-
-def cambiar_clave(p_usuario_id, p_clave_actual, p_nueva_clave):
-    """
-    Verifica la clave actual por comparacion directa en texto plano y
-    actualiza la contrasena sin usar werkzeug ni hashes avanzados.
-    Retorna True si cambio, False si la clave actual no coincide o hubo error.
-    """
-    try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    # Verificar que el usuario existe y la clave actual es correcta
-                    sql =  " SELECT id, password_hash FROM usuarios "
-                    sql += "  WHERE id = %s AND activo = 1 "
-                    cursor.execute(sql, (p_usuario_id,))
-                    usuario = cursor.fetchone()
-                    if not usuario:
-                        return False
-                    if usuario['password_hash'] != p_clave_actual:
-                        return False  # Clave actual incorrecta
-
-                    sql  = " UPDATE `usuarios` "
-                    sql += "    SET `password_hash` = %s "
-                    sql += "  WHERE `id` = %s "
-                    cursor.execute(sql, (p_nueva_clave, p_usuario_id))
-                conn.commit()
-            return True
-        return False
-    except Exception as e:
-        print(repr(e))
-        return False
-
-
-
-# ==============================================================================
-# CLASE DE ENTIDAD — TRABAJADOR
-# ==============================================================================
-
-class clsTrabajador:
-    def __init__(self, p_id=None, p_nombre=None, p_codigo_empleado=None,
-                 p_email=None, p_sede=None, p_rol=None,
-                 p_palabra_clave=None, p_password_hash=None, p_activo=None):
-        self.id               = p_id
-        self.nombre           = p_nombre
-        self.codigo_empleado  = p_codigo_empleado
-        self.email            = p_email
-        self.sede             = p_sede
-        self.rol              = p_rol
-        self.palabra_clave    = p_palabra_clave
-        self.password_hash    = p_password_hash
-        self.activo           = p_activo
-
-
-# ==============================================================================
-# CRUD — TRABAJADORES / PERSONAL
-# ==============================================================================
-
-def leer_trabajadores():
-    try:
-        conn = obtenerconexion()
-        result = None
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    sql =  " SELECT id, nombre, codigo_empleado, email, sede, rol, password_hash, activo "
-                    sql += "   FROM usuarios "
-                    sql += "  WHERE activo = 1 "
-                    sql += "  ORDER BY nombre "
-                    cursor.execute(sql)
-                    result = cursor.fetchall()
-        return result
-    except Exception as e:
-        print(f"Error en consulta: {repr(e)}")
-        return []
-
-
-def leer_trabajador_por_id(p_id):
-    """
-    Retorna un dict con los datos del trabajador o None si no existe.
-    """
-    try:
-        conn = obtenerconexion()
-        result = None
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    sql =  " SELECT id, nombre, codigo_empleado, "
-                    sql += "        email, sede, rol, activo "
-                    sql += "   FROM usuarios "
-                    sql += "  WHERE id = %s "
-                    cursor.execute(sql, (p_id,))
-                    result = cursor.fetchone()
-        return result
-    except Exception as e:
-        print(repr(e))
-        return None
-
-
-def insertar_trabajador(p_trabajador):
-    """
-    Inserta un nuevo trabajador en la tabla usuarios.
-    La contrasena inicial se establece en 'Tottus2026' (texto plano).
-    Retorna True si se inserto, False si el codigo_empleado ya existe o hubo error.
-    """
-    try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    # Verificar codigo_empleado duplicado
-                    sql =  " SELECT id FROM usuarios "
-                    sql += "  WHERE codigo_empleado = %s "
-                    cursor.execute(sql, (p_trabajador.codigo_empleado,))
-                    if cursor.fetchone():
-                        return False  # Codigo ya en uso
-
-                    password_inicial = p_trabajador.password_hash or 'Tottus2026'
-
-                    sql  = " INSERT INTO `usuarios` "
-                    sql += "   (`nombre`, `codigo_empleado`, `email`, "
-                    sql += "    `sede`, `rol`, `password_hash`) "
-                    sql += " VALUES (%s, %s, %s, %s, %s, %s) "
-                    cursor.execute(sql, (
-                        p_trabajador.nombre,
-                        p_trabajador.codigo_empleado,
-                        p_trabajador.email or '',
-                        p_trabajador.sede or '',
-                        p_trabajador.rol or 'operario',
-                        password_inicial,
-                    ))
-                conn.commit()
-            return True
-        return False
-    except Exception as e:
-        print(repr(e))
-        return False
-
-
-def actualizar_trabajador(p_trabajador):
-    """
-    Actualiza los datos de un trabajador existente.
-    Si p_trabajador.password_hash no es None ni vacio, tambien actualiza la contrasena.
-    Retorna True si actualizo, False si no lo encontro o hubo error.
-    """
-    try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    # Verificar que existe
-                    sql =  " SELECT id FROM usuarios "
-                    sql += "  WHERE id = %s "
-                    cursor.execute(sql, (p_trabajador.id,))
-                    if not cursor.fetchone():
-                        return False
-
-                    # Verificar codigo_empleado no duplicado en otro registro
-                    sql =  " SELECT id FROM usuarios "
-                    sql += "  WHERE codigo_empleado = %s AND id != %s "
-                    cursor.execute(sql, (p_trabajador.codigo_empleado, p_trabajador.id))
-                    if cursor.fetchone():
-                        return False  # Codigo ya en uso por otro usuario
-
-                    # Actualizar campos basicos
-                    sql  = " UPDATE `usuarios` "
-                    sql += "    SET `nombre` = %s, "
-                    sql += "        `codigo_empleado` = %s, "
-                    sql += "        `email` = %s, "
-                    sql += "        `sede` = %s, "
-                    sql += "        `rol` = %s "
-                    sql += "  WHERE `id` = %s "
-                    cursor.execute(sql, (
-                        p_trabajador.nombre,
-                        p_trabajador.codigo_empleado,
-                        p_trabajador.email or '',
-                        p_trabajador.sede or '',
-                        p_trabajador.rol or 'operario',
-                        p_trabajador.id,
-                    ))
-
-                    # Si se proporcionó nueva contrasena, actualizarla
-                    if p_trabajador.password_hash:
-                        sql  = " UPDATE `usuarios` "
-                        sql += "    SET `password_hash` = %s "
-                        sql += "  WHERE `id` = %s "
-                        cursor.execute(sql, (p_trabajador.password_hash, p_trabajador.id))
-
-                conn.commit()
-            return True
-        return False
-    except Exception as e:
-        print(repr(e))
-        return False
-
-
-def eliminar_trabajador(p_id):
-    """
-    Desactiva (soft-delete) un trabajador estableciendo activo=0.
-    Retorna True si se desactivo, False si no existia o hubo error.
-    """
-    try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    sql =  " SELECT id FROM usuarios "
-                    sql += "  WHERE id = %s "
-                    cursor.execute(sql, (p_id,))
-                    if not cursor.fetchone():
-                        return False
-
-                    sql  = " UPDATE `usuarios` "
-                    sql += "    SET `activo` = 0 "
-                    sql += "  WHERE `id` = %s "
-                    cursor.execute(sql, (p_id,))
-                conn.commit()
-            return True
-        return False
-    except Exception as e:
-        print(repr(e))
-        return False
-    
 def leer_conteos():
     try:
         conn = obtenerconexion()
@@ -1036,3 +813,276 @@ def contar_alertas():
     except Exception as e:
         print(repr(e))
         return 0
+
+# ==============================================================================
+# CLASE DE ENTIDAD — TRABAJADOR
+# ==============================================================================
+class clsTrabajador:
+    def __init__(self, p_id=None, p_nombre=None, p_codigo_empleado=None,
+                 p_email=None, p_sede=None, p_rol=None,
+                 p_palabra_clave=None, p_password_hash=None, p_activo=None):
+        self.id               = p_id
+        self.nombre           = p_nombre
+        self.codigo_empleado  = p_codigo_empleado
+        self.email            = p_email
+        self.sede             = p_sede
+        self.rol              = p_rol
+        self.palabra_clave    = p_palabra_clave
+        self.password_hash    = p_password_hash  # Mapea a la columna 'password' en SQL
+        self.activo           = p_activo
+
+# ==============================================================================
+# LEER TRABAJADORES
+# ==============================================================================
+def leer_trabajadores():
+    try:
+        conn = obtenerconexion()
+        lista_usuarios = []
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql = "SELECT id, nombre, codigo_empleado, email, sede, rol, activo FROM usuarios WHERE activo = 1 ORDER BY nombre"
+                    cursor.execute(sql)
+                    resultados = cursor.fetchall()
+                    
+                    if resultados:
+                        for fila in resultados:
+                            # Si viene como tupla/lista indexada, le ponemos las etiquetas fijas
+                            if not isinstance(fila, dict):
+                                columnas = ['id', 'nombre', 'codigo_empleado', 'email', 'sede', 'rol', 'activo']
+                                fila = dict(zip(columnas, fila))
+                            lista_usuarios.append(fila)
+                            
+        return lista_usuarios
+    except Exception as e:
+        print(f"Error en leer_trabajadores BD: {repr(e)}")
+        return []
+    
+# ==============================================================================
+# LEER TRABAJADOR POR ID
+# ==============================================================================
+def leer_trabajador_por_id(p_id):
+    """
+    Retorna un dict con los datos del trabajador o None si no existe.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # El orden exacto de tus columnas en el SELECT
+                    sql = " SELECT id, nombre, codigo_empleado, email, sede, rol, activo "
+                    sql += "   FROM usuarios "
+                    sql += "  WHERE id = %s "
+                    cursor.execute(sql, (p_id,))
+                    usuario = cursor.fetchone()
+                    
+                    if usuario:
+                        # Si es una tupla, la convertimos a un diccionario plano
+                        if not isinstance(usuario, dict):
+                            columnas = ['id', 'nombre', 'codigo_empleado', 'email', 'sede', 'rol', 'activo']
+                            usuario = dict(zip(columnas, usuario))
+                        
+                        return usuario  # Retorna el diccionario limpio
+        return None
+    except Exception as e:
+        print(f"Error en leer_trabajador_por_id: {repr(e)}")
+        return None
+
+# ==============================================================================
+# INSERTAR TRABAJADOR
+# ==============================================================================
+def insertar_trabajador(p_trabajador):
+    """
+    Inserta un nuevo trabajador en la tabla usuarios.
+    Retorna True si se inserto, False si el codigo_empleado ya existe o hubo error.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Verificar codigo_empleado duplicado
+                    sql =  " SELECT id FROM usuarios "
+                    sql += "  WHERE codigo_empleado = %s "
+                    cursor.execute(sql, (p_trabajador.codigo_empleado,))
+                    if cursor.fetchone():
+                        return False  # Codigo ya en uso
+
+                    password_inicial = p_trabajador.password_hash or 'Tottus2026'
+
+                    sql  = " INSERT INTO `usuarios` "
+                    sql += "   (`nombre`, `codigo_empleado`, `email`, "
+                    sql += "    `sede`, `rol`, `password`, `palabra_clave`) "
+                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                    cursor.execute(sql, (
+                        p_trabajador.nombre,
+                        p_trabajador.codigo_empleado,
+                        p_trabajador.email or '',
+                        p_trabajador.sede or 'Chiclayo',
+                        p_trabajador.rol or 'operario',
+                        password_inicial,
+                        p_trabajador.palabra_clave or ''
+                    ))
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False
+
+# ==============================================================================
+# ACTUALIZAR TRABAJADOR
+# ==============================================================================
+def actualizar_trabajador(p_trabajador):
+    """
+    Actualiza los datos de un trabajador existente en la tabla usuarios.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # Verificar que existe
+                    sql =  " SELECT id FROM usuarios "
+                    sql += "  WHERE id = %s "
+                    cursor.execute(sql, (p_trabajador.id,))
+                    if not cursor.fetchone():
+                        return False
+
+                    # Verificar codigo_empleado no duplicado en otro registro
+                    sql =  " SELECT id FROM usuarios "
+                    sql += "  WHERE codigo_empleado = %s AND id != %s "
+                    cursor.execute(sql, (p_trabajador.codigo_empleado, p_trabajador.id))
+                    if cursor.fetchone():
+                        return False  # Codigo ya en uso por otro usuario
+
+                    # Actualizar campos basicos
+                    sql  = " UPDATE `usuarios` "
+                    sql += "    SET `nombre` = %s, "
+                    sql += "        `codigo_empleado` = %s, "
+                    sql += "        `email` = %s, "
+                    sql += "        `sede` = %s, "
+                    sql += "        `rol` = %s, "
+                    sql += "        `palabra_clave` = %s "
+                    sql += "  WHERE `id` = %s "
+                    cursor.execute(sql, (
+                        p_trabajador.nombre,
+                        p_trabajador.codigo_empleado,
+                        p_trabajador.email or '',
+                        p_trabajador.sede or 'Chiclayo',
+                        p_trabajador.rol or 'operario',
+                        p_trabajador.palabra_clave or '',
+                        p_trabajador.id,
+                    ))
+
+                    # Si se proporcionó nueva contrasena, actualizarla en la columna 'password'
+                    if p_trabajador.password_hash:
+                        sql  = " UPDATE `usuarios` "
+                        sql += "    SET `password` = %s "
+                        sql += "  WHERE `id` = %s "
+                        cursor.execute(sql, (p_trabajador.password_hash, p_trabajador.id))
+
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False
+
+# ==============================================================================
+# ELIMINAR TRABAJADOR
+# ==============================================================================
+def eliminar_trabajador(p_id):
+    """
+    Desactiva (soft-delete) un trabajador estableciendo activo=0.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql =  " SELECT id FROM usuarios "
+                    sql += "  WHERE id = %s "
+                    cursor.execute(sql, (p_id,))
+                    if not cursor.fetchone():
+                        return False
+
+                    sql  = " UPDATE `usuarios` "
+                    sql += "    SET `activo` = 0 "
+                    sql += "  WHERE `id` = %s "
+                    cursor.execute(sql, (p_id,))
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False
+
+# ==============================================================================
+# CAMBIO DE CONTRASEÑA (Desde el Perfil)
+# ==============================================================================
+def cambiar_clave(p_trabajador_id, p_clave_actual, p_nueva_clave):
+    """
+    Verifica la clave actual por comparacion directa en texto plano en la tabla usuarios.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql =  " SELECT id, password FROM usuarios "
+                    sql += "  WHERE id = %s AND activo = 1 "
+                    cursor.execute(sql, (p_trabajador_id,))
+                    row = cursor.fetchone()
+                    
+                    if not row:
+                        return False
+                    if row['password'] != p_clave_actual:
+                        return False  # Clave actual incorrecta
+
+                    # Actualizar a la nueva contraseña
+                    sql  = " UPDATE `usuarios` "
+                    sql += "    SET `password` = %s "
+                    sql += "  WHERE `id` = %s "
+                    cursor.execute(sql, (p_nueva_clave, p_trabajador_id))
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False
+
+# ==============================================================================
+# RESTABLECER CONTRASEÑA (Desde el Login usando Palabra Clave)
+# ==============================================================================
+def restablecer_clave(p_codigo_empleado, p_palabra_clave, p_nueva_clave):
+    """
+    Verifica la identidad mediante el codigo de empleado y su palabra clave.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql =  " SELECT id, palabra_clave FROM usuarios "
+                    sql += "  WHERE codigo_empleado = %s AND activo = 1 "
+                    cursor.execute(sql, (p_codigo_empleado,))
+                    row = cursor.fetchone()
+                    
+                    if not row:
+                        return False  # Codigo no encontrado
+                    if row['palabra_clave'] != p_palabra_clave:
+                        return False  # Palabra clave incorrecta
+
+                    # Actualizar contraseña en la tabla usuarios
+                    sql  = " UPDATE `usuarios` "
+                    sql += "    SET `password` = %s "
+                    sql += "  WHERE `id` = %s "
+                    cursor.execute(sql, (p_nueva_clave, row['id']))
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print(repr(e))
+        return False

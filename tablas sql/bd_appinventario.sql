@@ -1,4 +1,3 @@
-
 DROP DATABASE IF EXISTS `tottus_sgi`;
 CREATE DATABASE `tottus_sgi`
     CHARACTER SET utf8mb4
@@ -17,15 +16,14 @@ CREATE TABLE `usuarios` (
     `codigo_empleado` VARCHAR(20)  UNIQUE NOT NULL,
     `nombre`          VARCHAR(100) NOT NULL,
     `email`           VARCHAR(100) UNIQUE,
-    `password_hash`   VARCHAR(255) NOT NULL,
-    `rol`             ENUM('operario','supervisor','gerente','tecnico') DEFAULT 'operario',
-    `sede`            VARCHAR(100) DEFAULT 'Chiclayo - Mall Aventura',
-    `palabra_clave`   VARCHAR(100) NULL,
+    `password`        VARCHAR(20) NOT NULL,
+    `rol`             ENUM('operario','supervisor','gerente') DEFAULT 'operario',
+    `sede`            VARCHAR(100) DEFAULT 'Chiclayo',
+    `palabra_clave`   VARCHAR(100) not null,
     `activo`          TINYINT(1)   DEFAULT 1,
-    `ultimo_login`    DATETIME,
+    `ultimo_login`    DATETIME null,
     `created_at`      DATETIME     DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
-
 
 -- ==========================================
 -- TABLA: PRODUCTOS
@@ -180,14 +178,14 @@ ORDER BY h.fecha DESC;
 
 
 -- ==========================================
--- DATOS SEMILLA — USUARIOS
+-- DATOS DE INSERCIÓN — USUARIOS
 -- ==========================================
 INSERT INTO `usuarios`
-    (`codigo_empleado`, `nombre`, `email`, `password_hash`, `rol`, `sede`, `palabra_clave`)
+    (`codigo_empleado`, `nombre`, `email`, `password`, `rol`, `sede`, `palabra_clave`)
 VALUES
-    ('ADMIN-001',   'Administrador Sistema',   'admin@tottus.com.pe',           'admin123',      'gerente',    'Chiclayo - Mall Aventura', 'adm'),
-    ('SUP-2024-001','Maria Gonzales',          'maria.gonzales@tottus.com.pe',  'Tottus2026',    'gerente',    'Chiclayo - Mall Aventura', NULL),
-    ('OPE-2024-001','Juan Rios',               'juan.rios@tottus.com.pe',       'Tottus2026',    'operario',   'Chiclayo - Mall Aventura', NULL);
+    ('GER-2026-001',   'Eduardo Valdez',       'eduardo.valdezz@tottus.com.pe',           'admin123',      'gerente',    'Chiclayo', 'ger'),
+    ('SUP-2024-001','Maria Gonzales',          'maria.gonzales@tottus.com.pe',  'Tottus2026',    'supervisor',    'Chiclayo', 'sup'),
+    ('OPE-2024-001','Juan Rios',               'juan.rios@tottus.com.pe',       'Tottus2026',    'operario',   'Chiclayo', 'ope');
 
 
 -- ==========================================

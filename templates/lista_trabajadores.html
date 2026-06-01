@@ -50,7 +50,7 @@
               
               {% if session.get('rol') in ['gerente', 'tecnico'] %}
                 <a href="#"
-                   data-url="{{ url_for('eliminar_trabajador', id=t.id) }}"
+                   data-url="{{ url_for('eliminar_trabajador_ruta', id=t.id) }}"
                    data-nombre="{{ t.nombre }}"
                    style="color:var(--danger); font-size:16px" title="Eliminar"
                    class="btn-eliminar-trabajador">
@@ -84,4 +84,4 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 });
 </script>
-{% endblock %}
+{% endblock %}

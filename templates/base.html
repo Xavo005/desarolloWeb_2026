@@ -23,7 +23,7 @@
 ] -%}
 
 {# Agregamos "Personal" SOLO si es Gerente o Tecnico (Icono de Fotocheck) #}
-{%- if session.get('rol') in ['gerente', 'tecnico'] -%}
+{%- if session.get('rol') in ['gerente'] -%}
   {%- set base_nav = base_nav + [{'id': 'trabajadores', 'label': 'Personal', 'icon': 'fa-id-card', 'url': url_for('listar_trabajadores')}] -%}
 {%- endif -%}
 
@@ -37,7 +37,7 @@
   ('escanear',  'Escanear', 'fa-qrcode', url_for('escanear'))
 ] -%}
 
-{%- if session.get('rol') in ['gerente', 'tecnico'] -%}
+{%- if session.get('rol') in ['gerente'] -%}
   {%- set base_tab = base_tab + [('trabajadores', 'Personal', 'fa-id-card', url_for('listar_trabajadores'))] -%}
 {%- endif -%}
 
