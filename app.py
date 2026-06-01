@@ -547,27 +547,35 @@ def api_buscar_sku():
 
 
 # ==============================================================================
-# API - CONTEOS MANUALES (Regla 3 capas: SQL en tottusAD)
+# API - CONTEOS MANUALES (Regla 3 capas: SQL en tottusAD - Diego)
 # ==============================================================================
 @app.route('/api/conteos', methods=['POST'])
 def api_crear_conteo():
     try:
-        data    = request.get_json() or {}
+        data = request.get_json() or {}
         prod_id = data.get('producto_id')
-        contado = data.get('stock_contado')
-        motivo  = data.get('motivo', '')
+        # Intentamos convertir a entero para mayor seguridad
+        try:
+            contado = int(data.get('stock_contado'))
+        except (TypeError, ValueError):
+            return jsonify({'code': 0, 'message': 'stock_contado debe ser un número entero'}), 400
+            
+        motivo = data.get('motivo', '')
 
-        if prod_id is None or contado is None:
-            return jsonify({'code': 0, 'message': 'producto_id y stock_contado son requeridos'}), 400
+        if prod_id is None:
+            return jsonify({'code': 0, 'message': 'producto_id es requerido'}), 400
 
-        ok, _ = insertar_conteo_manual(prod_id, contado, motivo)
+        ok, resultado = insertar_conteo_manual(prod_id, contado, motivo)
+        
         if ok:
-            return jsonify({'code': 1, 'message': 'Conteo registrado'})
+            return jsonify({'code': 1, 'message': 'Conteo registrado'}), 201
+        
         return jsonify({'code': 0, 'message': 'Producto no encontrado o error al registrar'}), 404
-    except Exception as e:
-        print("Error en /api/conteos:", repr(e))
-        return jsonify({'code': -1, 'message': repr(e)}), 500
 
+    except Exception as e:
+        # Registramos el error en consola, pero no lo enviamos al cliente
+        print(f"Error crítico en /api/conteos: {repr(e)}")
+        return jsonify({'code': -1, 'message': 'Error interno del servidor'}), 500
 
 
 
