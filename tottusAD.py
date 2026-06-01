@@ -606,7 +606,62 @@ def actualizar_alerta(p_Alerta):
         print(repr(e))
         return False
 
+def actualizar_alerta_sincronizada(p_alerta_id, p_unidades, p_venta_dia, p_estado_transf, p_motivo='Ajuste desde edición de alerta'):
+    """
+    Actualiza una alerta, sincroniza el stock del producto de forma global,
+    y registra el cambio en el historial recuperando el stock anterior.
+    Garantiza la regla de 3 capas bajo una única transacción atómica.
+    """
+    try:
+        conn = obtenerconexion()
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    # 1. Obtener producto_id y el stock actual para la auditoría
+                    sql_info = """
+                        SELECT a.producto_id, p.stock_total 
+                        FROM alertas_quiebre a
+                        JOIN productos p ON a.producto_id = p.id
+                        WHERE a.id = %s AND a.activo = 1
+                    """
+                    cursor.execute(sql_info, (p_alerta_id,))
+                    row = cursor.fetchone()
+                    if not row:
+                        return False # Alerta no encontrada
+                    
+                    producto_id = row['producto_id']
+                    stock_anterior = row['stock_total']
 
+                    # 2. Actualizar tabla alertas_quiebre
+                    sql_alerta = """
+                        UPDATE alertas_quiebre
+                           SET unidades = %s, venta_dia = %s, estado_transf = %s, updated_at = NOW()
+                         WHERE id = %s
+                    """
+                    cursor.execute(sql_alerta, (p_unidades, p_venta_dia, p_estado_transf, p_alerta_id))
+
+                    # 3. Sincronizar el stock en la tabla productos
+                    sql_producto = """
+                        UPDATE productos
+                           SET stock_total = %s
+                         WHERE id = %s
+                    """
+                    cursor.execute(sql_producto, (p_unidades, producto_id))
+
+                    # 4. Registrar en Historial usando el mismo cursor abierto (sin duplicar conexiones)
+                    _registrar_historial(
+                        cursor, producto_id, 'UPDATE',
+                        campo='stock_total_alerta',
+                        anterior=stock_anterior,
+                        nuevo=p_unidades,
+                        motivo=p_motivo
+                    )
+                conn.commit()
+            return True
+        return False
+    except Exception as e:
+        print("Error en actualizar_alerta_sincronizada:", repr(e))
+        return False
 # ==============================================================================
 # HISTORIAL — FUNCIONES PUBLICAS
 # ==============================================================================
