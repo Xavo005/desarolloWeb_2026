@@ -31,6 +31,7 @@ from tottusAD import (
     clsConteo, leer_conteos, insertar_conteo,
     insertar_conteo_manual,
     contar_alertas,
+    insertar_trabajador
 )
 
 app = Flask(__name__)
@@ -935,25 +936,28 @@ def api_listar_usuarios():
 @app.route("/api_guardar_usuario", methods=['POST'])
 def api_guardar_usuario():
     try:
+        d = request.json
+        pwd = d.get('password_hash')
+        if not pwd:
+            pwd = '123'
         obj = clsTrabajador(
             None,
-            request.json['nombre'],
-            request.json['codigo_empleado'],
-            request.json['email'],
-            request.json['sede'],
-            request.json['rol'],
-            request.json['palabra_clave'],
-            None
+            d.get('nombre', ''),
+            d.get('codigo_empleado', ''),
+            d.get('email', ''),
+            d.get('sede', ''),
+            d.get('rol', 'operario'),
+            pwd, 
+            1
         )
-
+        
         if insertar_trabajador(obj):
             return jsonify({"code": 1, "message": "Trabajador registrado correctamente"})
-        return jsonify({"code": 0, "message": "No se pudo registrar (codigo duplicado o error)"})
-
+        else:
+            return jsonify({"code": 0, "message": "No se pudo registrar (codigo duplicado o error)"})
     except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
-
-
+        return jsonify({"code": -1, "message": str(e)})
+    
 # ==============================================================================
 # APIS - CONTEOS MANUALES
 # ==============================================================================

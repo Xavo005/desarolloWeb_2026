@@ -948,42 +948,21 @@ def leer_trabajador_por_id(p_id):
 # INSERTAR TRABAJADOR
 # ==============================================================================
 def insertar_trabajador(p_trabajador):
-    """
-    Inserta un nuevo trabajador en la tabla usuarios.
-    Retorna True si se inserto, False si el codigo_empleado ya existe o hubo error.
-    """
     try:
         conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    # Verificar codigo_empleado duplicado
-                    sql =  " SELECT id FROM usuarios "
-                    sql += "  WHERE codigo_empleado = %s "
-                    cursor.execute(sql, (p_trabajador.codigo_empleado,))
-                    if cursor.fetchone():
-                        return False  # Codigo ya en uso
-
-                    password_inicial = p_trabajador.password_hash or 'Tottus2026'
-
-                    sql  = " INSERT INTO `usuarios` "
-                    sql += "   (`nombre`, `codigo_empleado`, `email`, "
-                    sql += "    `sede`, `rol`, `password`, `palabra_clave`) "
-                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s) "
-                    cursor.execute(sql, (
-                        p_trabajador.nombre,
-                        p_trabajador.codigo_empleado,
-                        p_trabajador.email or '',
-                        p_trabajador.sede or 'Chiclayo',
-                        p_trabajador.rol or 'operario',
-                        password_inicial,
-                        p_trabajador.palabra_clave or ''
-                    ))
-                conn.commit()
+        if not conn: return False
+        
+        with conn.cursor() as cursor:
+            # Intentemos el INSERT directamente sin validación previa para ver si pasa
+            sql = "INSERT INTO usuarios (nombre, codigo_empleado, email, sede, rol, password_hash) VALUES (%s, %s, %s, %s, %s, %s)"
+            valores = (p_trabajador.nombre, p_trabajador.codigo_empleado, p_trabajador.email, p_trabajador.sede, p_trabajador.rol, p_trabajador.password_hash)
+            
+            cursor.execute(sql, valores)
+            conn.commit()
             return True
-        return False
     except Exception as e:
-        print(repr(e))
+        # ESTO ES LO QUE NECESITO QUE VEAS
+        print(f"--- ERROR DETECTADO: {str(e)} ---")
         return False
 
 # ==============================================================================
