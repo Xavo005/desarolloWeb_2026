@@ -23,7 +23,7 @@ from tottusAD import (
     insertar_segmentacion, actualizar_segmentacion,
     eliminar_segmentacion, toggle_segmentacion,
     clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
-    eliminar_alerta, actualizar_alerta,
+    eliminar_alerta, actualizar_alerta, actualizar_alerta_sincronizada,
     clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
     insertar_trabajador  as ad_insertar_trabajador,
     actualizar_trabajador as actualizar_trabajador,
@@ -187,9 +187,58 @@ def dashboard():
     except Exception as e:
         return render_template('error_500.html'), 500
 
+@app.route('/api/dashboard/graficos')
+def api_dashboard_graficos():
+    try:
+        conn = obtenerconexion()
+        if not conn:
+            return jsonify({'success': False, 'message': 'No se pudo conectar a la base de datos'})
+        
+        with conn:
+            with conn.cursor() as cursor:
+                # 1. Stock por categoría
+                cursor.execute("""
+                    SELECT categoria, SUM(stock_total) AS total_stock 
+                    FROM productos 
+                    WHERE activo=1 AND categoria IS NOT NULL AND categoria != ''
+                    GROUP BY categoria 
+                    ORDER BY total_stock DESC
+                """)
+                stock_por_categoria = cursor.fetchall()
+
+                # 2. Tendencia ajustes (últimos 7 días)
+                cursor.execute("""
+                    SELECT DATE_FORMAT(fecha, '%Y-%m-%d') AS dia, 
+                    COUNT(*) AS total 
+                    FROM historial_ajustes 
+                    WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
+                    GROUP BY DATE(fecha) 
+                    ORDER BY DATE(fecha) ASC
+                """)
+                tendencia_ajustes = cursor.fetchall()
+
+                # 3. Alertas por nivel
+                cursor.execute("""
+                    SELECT nivel, COUNT(*) AS total 
+                    FROM alertas_quiebre 
+                    WHERE activo=1 
+                    GROUP BY nivel
+                """)
+                alertas_por_nivel = cursor.fetchall()
+
+        return jsonify({
+            'success': True,
+            'stock_por_categoria': stock_por_categoria,
+            'tendencia_ajustes': tendencia_ajustes,
+            'alertas_por_nivel': alertas_por_nivel
+        })
+    except Exception as e:
+        print("Error en /api/dashboard/graficos:", repr(e))
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 # ==============================================================================
-# UC4 - ALERTAS DE QUIEBRE (Gianella)
+# UC4 - ALERTAS DE QUIEBRE (Gianella Torres)
 # ==============================================================================
 # contar_alertas() fue movida a tottusAD.py - se importa desde alli
 
@@ -272,42 +321,33 @@ def alertas():
     except Exception as e:
         return render_template('error_500.html'), 500
 
-
 @app.route('/alertas/actualizar', methods=['POST'])
 def actualizar_alerta_tradicional():
     try:
-        alerta_id    = int(request.form['id'])
-        unidades     = int(request.form['unidades'])
-        venta_dia    = float(request.form['venta_dia'])
+        alerta_id     = int(request.form['id'])
+        unidades      = int(request.form['unidades'])
+        venta_dia     = float(request.form['venta_dia'])
         estado_transf = request.form['estado_transf'].strip()
+        modo          = request.form.get('modo', 'estatico')
 
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        UPDATE alertas_quiebre
-                        SET unidades=%s, venta_dia=%s, estado_transf=%s, updated_at=NOW()
-                        WHERE id=%s
-                    """, (unidades, venta_dia, estado_transf, alerta_id))
+        # Invocamos la función de la capa de datos (tottusAD)
+        exito = actualizar_alerta_sincronizada(
+            p_alerta_id=alerta_id,
+            p_unidades=unidades,
+            p_venta_dia=venta_dia,
+            p_estado_transf=estado_transf
+        )
 
-                    # Registrar en historial segun logica previa
-                    cursor.execute("SELECT producto_id FROM alertas_quiebre WHERE id=%s", (alerta_id,))
-                    row = cursor.fetchone()
-                    if row and row['producto_id']:
-                        registrar_historial(
-                            p_producto_id=row['producto_id'],
-                            p_accion='UPDATE',
-                            p_campo='alert_edit',
-                            p_motivo=f'Edicion tradicional de alerta {alerta_id}'
-                        )
-                conn.commit()
+        if not exito:
+            return render_template('error_500.html'), 500
 
-        datos = _obtener_datos_alertas()
-        return render_template('alertas.html', **datos)
+        # Patrón PRG: Redirigimos pasando el modo como parámetro en la URL (?modo=...)
+    
+        return redirect(url_for('alertas', modo=modo))
+
     except Exception as e:
+        print("Error en /alertas/actualizar:", repr(e))
         return render_template('error_500.html'), 500
-
 
 @app.route('/eliminar_alerta/<int:alerta_id>')
 def eliminar_alerta_ruta(alerta_id):
@@ -319,7 +359,30 @@ def eliminar_alerta_ruta(alerta_id):
             return render_template('error_500.html'), 500
     except Exception as e:
         return render_template('error_500.html'), 500
-
+    
+# ==============================================================================
+# API - ALERTAS - Gianella Torres
+# ==============================================================================
+@app.route("/api_listar_alertas")
+def api_listar_alertas():
+    try:
+        # Capturamos el modo desde la URL (ej: /api_listar_alertas?modo=dinamico)
+        modo = request.args.get('modo', 'estatico')
+        
+        # Llamamos a tu función interna que ya calcula todo
+        datos = _obtener_datos_alertas(modo)
+        
+        # Retornamos solo el diccionario de alertas y totales en formato JSON
+        return jsonify({
+            "code": 1,
+            "data": {
+                "alertas": datos['alertas'],
+                "totales": datos['totales'],
+                "modo": datos['modo']
+            }
+        })
+    except Exception as e:
+        return jsonify({"code": -1, "data": {}, "message": repr(e)})
 
 # ==============================================================================
 # HISTORIAL-DIEGO CALDERON
@@ -547,27 +610,35 @@ def api_buscar_sku():
 
 
 # ==============================================================================
-# API - CONTEOS MANUALES (Regla 3 capas: SQL en tottusAD)
+# API - CONTEOS MANUALES (Regla 3 capas: SQL en tottusAD - Diego)
 # ==============================================================================
 @app.route('/api/conteos', methods=['POST'])
 def api_crear_conteo():
     try:
-        data    = request.get_json() or {}
+        data = request.get_json() or {}
         prod_id = data.get('producto_id')
-        contado = data.get('stock_contado')
-        motivo  = data.get('motivo', '')
+        # Intentamos convertir a entero para mayor seguridad
+        try:
+            contado = int(data.get('stock_contado'))
+        except (TypeError, ValueError):
+            return jsonify({'code': 0, 'message': 'stock_contado debe ser un número entero'}), 400
+            
+        motivo = data.get('motivo', '')
 
-        if prod_id is None or contado is None:
-            return jsonify({'code': 0, 'message': 'producto_id y stock_contado son requeridos'}), 400
+        if prod_id is None:
+            return jsonify({'code': 0, 'message': 'producto_id es requerido'}), 400
 
-        ok, _ = insertar_conteo_manual(prod_id, contado, motivo)
+        ok, resultado = insertar_conteo_manual(prod_id, contado, motivo)
+        
         if ok:
-            return jsonify({'code': 1, 'message': 'Conteo registrado'})
+            return jsonify({'code': 1, 'message': 'Conteo registrado'}), 201
+        
         return jsonify({'code': 0, 'message': 'Producto no encontrado o error al registrar'}), 404
-    except Exception as e:
-        print("Error en /api/conteos:", repr(e))
-        return jsonify({'code': -1, 'message': repr(e)}), 500
 
+    except Exception as e:
+        # Registramos el error en consola, pero no lo enviamos al cliente
+        print(f"Error crítico en /api/conteos: {repr(e)}")
+        return jsonify({'code': -1, 'message': 'Error interno del servidor'}), 500
 
 
 
@@ -625,7 +696,7 @@ def api_exportar_historial():
 
 
 # ==============================================================================
-# CRUD - SEGMENTACIONES
+# CRUD - SEGMENTACIONES - Gianella Torres
 # ==============================================================================
 def _obtener_datos_segmentacion():
     segmentaciones = obtener_segmentaciones()
@@ -918,7 +989,7 @@ def api_guardar_conteo():
 
 
 # ==============================================================================
-# ALERTAS - Prediccion dinamica
+# ALERTAS - Prediccion dinamica - Gianella Torres
 # ==============================================================================
 def calcular_prediccion_dinamica(conn, producto_id, stock_actual, static_venta_dia):
     try:
