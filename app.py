@@ -646,10 +646,12 @@ def api_crear_conteo():
 # ════════════════════════════════════════════════════════════
 # API — HISTORIAL CSV  (DIEGO CALDERON)
 # ════════════════════════════════════════════════════════════
-@app.route('/api/historial/exportar', methods=['GET'])
+# ==============================================================================
+# API — HISTORIAL CSV (MODIFICADO PARA POST)
+# ==============================================================================
+@app.route('/api/historial/exportar', methods=['POST']) # <--- Cambiado a POST
 def api_exportar_historial():
     def generate():
-        # Buffer de memoria
         data = io.StringIO()
         writer = csv.writer(data)
         
@@ -669,7 +671,6 @@ def api_exportar_historial():
                 """)
                 
                 for reg in cursor:
-                    # Usamos dict.get para evitar KeyError si falta alguna columna
                     writer.writerow([
                         reg.get('id'), 
                         reg.get('producto_id'), 
@@ -686,7 +687,6 @@ def api_exportar_historial():
         finally:
             conn.close()
 
-    # Retorno directo de la respuesta de streaming
     return Response(
         stream_with_context(generate()),
         mimetype='text/csv',
