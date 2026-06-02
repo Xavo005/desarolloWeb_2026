@@ -38,6 +38,86 @@ def obtener_alertas_recientes():
         return []
 
 # ==============================================================================
+# DASHBOARD — GRAFICOS (Gianella Torres — migrado desde app.py, regla 3 capas)
+# ==============================================================================
+
+def obtener_datos_graficos_dashboard():
+    """
+    Retorna los tres conjuntos de datos necesarios para los graficos del dashboard:
+      - stock_por_categoria: SUM de stock_total agrupado por categoria.
+      - tendencia_ajustes:   Conteo de ajustes de los ultimos 7 dias.
+      - alertas_por_nivel:   Conteo de alertas activas agrupadas por nivel.
+    Sin SQL en el controlador (cumple regla de 3 capas).
+    """
+    try:
+        conn = obtenerconexion()
+        if not conn:
+            return {'stock_por_categoria': [], 'tendencia_ajustes': [], 'alertas_por_nivel': []}
+        with conn:
+            with conn.cursor() as cursor:
+                # 1. Stock por categoria
+                sql =  " SELECT categoria, SUM(stock_total) AS total_stock "
+                sql += "   FROM productos "
+                sql += "  WHERE activo = 1 "
+                sql += "    AND categoria IS NOT NULL "
+                sql += "    AND categoria != '' "
+                sql += "  GROUP BY categoria "
+                sql += "  ORDER BY total_stock DESC "
+                cursor.execute(sql)
+                stock_por_categoria = cursor.fetchall()
+
+                # 2. Tendencia de ajustes (ultimos 7 dias)
+                sql =  " SELECT DATE_FORMAT(fecha, '%Y-%m-%d') AS dia, "
+                sql += "        COUNT(*) AS total "
+                sql += "   FROM historial_ajustes "
+                sql += "  WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) "
+                sql += "  GROUP BY DATE(fecha) "
+                sql += "  ORDER BY DATE(fecha) ASC "
+                cursor.execute(sql)
+                tendencia_ajustes = cursor.fetchall()
+
+                # 3. Alertas por nivel
+                sql =  " SELECT nivel, COUNT(*) AS total "
+                sql += "   FROM alertas_quiebre "
+                sql += "  WHERE activo = 1 "
+                sql += "  GROUP BY nivel "
+                cursor.execute(sql)
+                alertas_por_nivel = cursor.fetchall()
+
+        return {
+            'stock_por_categoria': stock_por_categoria,
+            'tendencia_ajustes':   tendencia_ajustes,
+            'alertas_por_nivel':   alertas_por_nivel,
+        }
+    except Exception as e:
+        print(f"Error en obtener_datos_graficos_dashboard: {repr(e)}")
+        return {'stock_por_categoria': [], 'tendencia_ajustes': [], 'alertas_por_nivel': []}
+
+
+def leer_productos_basico():
+    """
+    Retorna id, nombre, sku y stock_total de los productos activos.
+    Usado por la ruta de segmentacion para poblar el select de productos.
+    Columnas explicitas (sin SELECT *).
+    """
+    try:
+        conn = obtenerconexion()
+        if not conn:
+            return []
+        with conn:
+            with conn.cursor() as cursor:
+                sql =  " SELECT id, nombre, sku, stock_total "
+                sql += "   FROM productos "
+                sql += "  WHERE activo = 1 "
+                sql += "  ORDER BY nombre "
+                cursor.execute(sql)
+                return cursor.fetchall()
+    except Exception as e:
+        print(f"Error en leer_productos_basico: {repr(e)}")
+        return []
+
+
+# ==============================================================================
 # CLASES DE ENTIDAD - PRODUCTO Xavier Ruiz Guevara
 # ==============================================================================
 
@@ -288,10 +368,7 @@ def eliminar_producto(p_id):
 
 
 def buscar_sku(p_sku):
-    """
-    Busca un producto por SKU e incluye informacion de alerta activa.
-    Retorna un dict o None. Usada exclusivamente por el escaner (excepcion aprobada).
-    """
+
     try:
         conn = obtenerconexion()
         result = None
@@ -323,11 +400,7 @@ def buscar_sku(p_sku):
 
 def _registrar_historial(cursor, producto_id, accion,
                          campo=None, anterior=None, nuevo=None, motivo=None):
-    """
-    Inserta un registro en historial_ajustes.
-    Recibe el cursor ya abierto (sin abrir conexion nueva).
-    Es privada: uso exclusivo interno de tottusAD.py.
-    """
+
     sql  = " INSERT INTO historial_ajustes "
     sql += "   (producto_id, usuario_id, empleado_nombre, accion, "
     sql += "    campo_modificado, valor_anterior, valor_nuevo, motivo) "
@@ -766,18 +839,11 @@ def insertar_conteo(p_conteo):
 
 
 # ==============================================================================
-# CONTEOS MANUALES — ESCANER (Regla de 3 capas)
+# CONTEOS MANUALES — ESCANER 
 # ==============================================================================
 
 def insertar_conteo_manual(p_prod_id, p_contado, p_motivo=''):
-    """
-    Registra un conteo manual desde el escaner:
-    1. Verifica que el producto exista.
-    2. Inserta en conteos_manuales.
-    3. Actualiza stock_total del producto.
-    4. Registra en historial_ajustes.
-    Retorna (True, stock_anterior) o (False, None).
-    """
+
     try:
         conn = obtenerconexion()
         if not conn:
@@ -964,6 +1030,10 @@ def leer_trabajador_por_id(p_id):
 # INSERTAR TRABAJADOR
 # ==============================================================================
 def insertar_trabajador(p_trabajador):
+    """
+    Inserta un nuevo trabajador en la tabla usuarios.
+    Columna correcta en la BD: 'password' (no 'password_hash').
+    """
     try:
         conn = obtenerconexion()
         if not conn: return False
@@ -982,7 +1052,7 @@ def insertar_trabajador(p_trabajador):
             
             cursor.execute(sql, valores)
             conn.commit()
-            return True
+        return True
     except Exception as e:
         print(f"--- ERROR DETECTADO EN INSERTAR BD: {str(e)} ---")
         return False
