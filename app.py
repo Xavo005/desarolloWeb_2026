@@ -3,17 +3,15 @@ import io
 import json
 from datetime import datetime
 
-
-from flask import Flask, render_template, request, Response, jsonify, stream_with_context  # type: ignore[import]
-from markupsafe import escape
-
-from flask import Flask, render_template, request, Response, jsonify, session, redirect, url_for
-
-from bd import obtenerconexion
+from flask import (
+    Flask, render_template, request, Response, jsonify,
+    session, redirect, url_for, stream_with_context
+)
 
 from tottusAD import (
     cambiar_clave,
     obtener_stats_dashboard, obtener_alertas_recientes,
+    obtener_datos_graficos_dashboard,
     leer_historial, registrar_historial,
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
@@ -25,13 +23,13 @@ from tottusAD import (
     clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
     eliminar_alerta, actualizar_alerta, actualizar_alerta_sincronizada,
     clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
-    insertar_trabajador  as ad_insertar_trabajador,
-    actualizar_trabajador as actualizar_trabajador,
+    insertar_trabajador,
+    actualizar_trabajador,
     eliminar_trabajador  as ad_eliminar_trabajador,
     clsConteo, leer_conteos, insertar_conteo,
     insertar_conteo_manual,
     contar_alertas,
-    insertar_trabajador
+    leer_productos_basico,
 )
 
 app = Flask(__name__)
@@ -191,47 +189,12 @@ def dashboard():
 @app.route('/api/dashboard/graficos')
 def api_dashboard_graficos():
     try:
-        conn = obtenerconexion()
-        if not conn:
-            return jsonify({'success': False, 'message': 'No se pudo conectar a la base de datos'})
-        
-        with conn:
-            with conn.cursor() as cursor:
-                # 1. Stock por categoría
-                cursor.execute("""
-                    SELECT categoria, SUM(stock_total) AS total_stock 
-                    FROM productos 
-                    WHERE activo=1 AND categoria IS NOT NULL AND categoria != ''
-                    GROUP BY categoria 
-                    ORDER BY total_stock DESC
-                """)
-                stock_por_categoria = cursor.fetchall()
-
-                # 2. Tendencia ajustes (últimos 7 días)
-                cursor.execute("""
-                    SELECT DATE_FORMAT(fecha, '%Y-%m-%d') AS dia, 
-                    COUNT(*) AS total 
-                    FROM historial_ajustes 
-                    WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
-                    GROUP BY DATE(fecha) 
-                    ORDER BY DATE(fecha) ASC
-                """)
-                tendencia_ajustes = cursor.fetchall()
-
-                # 3. Alertas por nivel
-                cursor.execute("""
-                    SELECT nivel, COUNT(*) AS total 
-                    FROM alertas_quiebre 
-                    WHERE activo=1 
-                    GROUP BY nivel
-                """)
-                alertas_por_nivel = cursor.fetchall()
-
+        datos = obtener_datos_graficos_dashboard()
         return jsonify({
             'success': True,
-            'stock_por_categoria': stock_por_categoria,
-            'tendencia_ajustes': tendencia_ajustes,
-            'alertas_por_nivel': alertas_por_nivel
+            'stock_por_categoria': datos['stock_por_categoria'],
+            'tendencia_ajustes':   datos['tendencia_ajustes'],
+            'alertas_por_nivel':   datos['alertas_por_nivel']
         })
     except Exception as e:
         print("Error en /api/dashboard/graficos:", repr(e))
@@ -598,7 +561,7 @@ def api_guardar_producto():
 
 
 # ==============================================================================
-# API - ESCANER (Sesion 15 - POST estandar del profesor)
+# API - ESCANER 
 # ==============================================================================
 @app.route("/api_buscar_sku", methods=["POST"])
 def api_buscar_sku():
@@ -611,7 +574,7 @@ def api_buscar_sku():
 
 
 # ==============================================================================
-# API - CONTEOS MANUALES (Regla 3 capas: SQL en tottusAD - Diego)
+# API - CONTEOS MANUALES
 # ==============================================================================
 @app.route('/api/conteos', methods=['POST'])
 def api_crear_conteo():
@@ -644,55 +607,49 @@ def api_crear_conteo():
 
 
 
-# ════════════════════════════════════════════════════════════
-# API — HISTORIAL CSV  (DIEGO CALDERON)
-# ════════════════════════════════════════════════════════════
+# ==============================================================================
+# API — HISTORIAL CSV  (DIEGO CALDERON — refactorizado 3 capas)
+# ==============================================================================
 @app.route('/api/historial/exportar', methods=['GET'])
 def api_exportar_historial():
-    def generate():
-        # Buffer de memoria
-        data = io.StringIO()
-        writer = csv.writer(data)
-        
-        # Cabeceras
-        writer.writerow(['ID', 'Producto ID', 'Accion', 'Campo', 'Anterior', 'Nuevo', 'Motivo', 'Fecha'])
-        yield data.getvalue()
-        data.seek(0)
-        data.truncate(0)
+    """
+    Exporta el historial de ajustes como CSV.
+    Usa leer_historial() de tottusAD (Regla 3 capas: sin SQL en el controlador).
+    """
+    try:
+        registros = leer_historial(p_limite=5000) or []
 
-        conn = obtenerconexion()
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT id, producto_id, accion, campo_modificado, 
-                           valor_anterior, valor_nuevo, motivo, fecha 
-                    FROM historial_ajustes ORDER BY fecha DESC
-                """)
-                
-                for reg in cursor:
-                    # Usamos dict.get para evitar KeyError si falta alguna columna
-                    writer.writerow([
-                        reg.get('id'), 
-                        reg.get('producto_id'), 
-                        reg.get('accion'), 
-                        reg.get('campo_modificado') or 'N/A', 
-                        reg.get('valor_anterior') or '-', 
-                        reg.get('valor_nuevo') or '-', 
-                        reg.get('motivo'), 
-                        reg.get('fecha')
-                    ])
-                    yield data.getvalue()
-                    data.seek(0)
-                    data.truncate(0)
-        finally:
-            conn.close()
+        si = io.StringIO()
+        cw = csv.writer(si)
+        cw.writerow(['Fecha', 'Producto', 'SKU', 'Empleado', 'Rol',
+                     'Accion', 'Campo', 'Anterior', 'Nuevo', 'Motivo'])
 
-    # Retorno directo de la respuesta de streaming
-    return Response(
-        stream_with_context(generate()),
-        mimetype='text/csv',
-        headers={"Content-Disposition": "attachment;filename=historial_inventario.csv"}
-    )
+        for reg in registros:
+            cw.writerow([
+                reg.get('fecha', ''),
+                reg.get('producto_nombre', ''),
+                reg.get('sku', ''),
+                reg.get('empleado_nombre', ''),
+                reg.get('empleado_rol', ''),
+                reg.get('accion', ''),
+                reg.get('campo_modificado') or 'N/A',
+                reg.get('valor_anterior') or '-',
+                reg.get('valor_nuevo') or '-',
+                reg.get('motivo', ''),
+            ])
+
+        return Response(
+            si.getvalue(),
+            mimetype='text/csv',
+            headers={"Content-Disposition": "attachment;filename=historial_inventario.csv"}
+        )
+    except Exception as e:
+        print("Error en /api/historial/exportar:", repr(e))
+        return Response(
+            json.dumps({'success': False, 'message': str(e)}),
+            mimetype='application/json',
+            status=500
+        )
 
 
 
@@ -700,14 +657,9 @@ def api_exportar_historial():
 # CRUD - SEGMENTACIONES - Gianella Torres
 # ==============================================================================
 def _obtener_datos_segmentacion():
+    """Helper: reune datos para la vista de segmentacion. Sin SQL directo."""
     segmentaciones = obtener_segmentaciones()
-    conn = obtenerconexion()
-    productos_lista = []
-    if conn:
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT id, nombre, sku, stock_total FROM productos WHERE activo=1 ORDER BY nombre")
-                productos_lista = cursor.fetchall()
+    productos_lista = leer_productos_basico()
     totales = obtener_totales_alertas()
     alertas_count = totales.get('critico', 0) + totales.get('urgente', 0)
     return {
@@ -1072,17 +1024,17 @@ def calcular_prediccion_dinamica(conn, producto_id, stock_actual, static_venta_d
 
 @app.route('/listar_alertas')
 def api_get_alertas():
+    """
+    Muestra la lista de alertas activas.
+    Delega a obtener_alertas_activas() de tottusAD (Regla 3 capas).
+    Sin SELECT * ni acceso directo a BD desde el controlador.
+    """
     try:
-        conn = obtenerconexion()
-        resultado = None
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT * FROM v_alertas_activas")
-                    resultado = cursor.fetchall()
+        resultado = obtener_alertas_activas()
         return render_template('lista_alertas.html', datos=resultado)
     except Exception as e:
         return mostrar_error("Error al cargar la lista de alertas.", 500)
+
 
 
 # ==============================================================================
