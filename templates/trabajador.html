@@ -10,7 +10,7 @@
       Crear Ficha de Personal
     </div>
 
-    <form action="{{ url_for('insertar_trabajador') }}" method="POST">
+<form action="{{ url_for('insertar_trabajador_ruta') }}" method="POST">
       <div class="form-group">
         <label style="font-size:13px; font-weight:600; color:var(--text)">Nombre Completo</label>
         <input type="text" name="nombre" placeholder="Ej. Juan Pérez Ramos" required style="width:100%; margin-top:4px">
@@ -40,6 +40,7 @@
             <option value="operario">Operario</option>
             <option value="gerente">Gerente</option>
             <option value="tecnico">Técnico</option>
+            <option value="supervisor">Supervisor</option>
           </select>
         </div>
       </div>

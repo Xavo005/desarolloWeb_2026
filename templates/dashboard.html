@@ -15,16 +15,24 @@
 {% block content %}
 <div class="px-4" style="max-width:1100px;margin:0 auto;padding-top:24px">
 
-  <!-- Bienvenida -->
+  <!-- Bienvenida Dinámica Corregida -->
   <div class="card mb-4">
     <div class="flex items-center justify-between">
       <div>
-        <div style="font-size:18px;font-weight:700">Hola, {{ nombre.split()[0] }} 👋</div>
-        <div class="text-muted text-sm mt-2">{{ sede }}</div>
+        <!-- Saludo dinámico usando session: Muestra 'Hola, [Nombre] ([Rol])' -->
+        <div style="font-size:18px;font-weight:700">
+          Hola, {{ (session.get('nombre') or 'Usuario').split()[0] }} 
+          <span style="font-size:14px; font-weight:500; color:var(--text-muted)">
+            ({{ (session.get('rol') or 'operario') | capitalize }})
+          </span> 👋
+        </div>
+        <!-- Sede sincronizada desde la sesión -->
+        <div class="text-muted text-sm mt-2">{{ session.get('sede') or 'Chiclayo' }}</div>
         <div class="text-green text-sm mt-2" id="fecha-hora"></div>
       </div>
+      <!-- Avatar dinámico con la inicial del usuario en sesión -->
       <div style="width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">
-        {{ nombre[0] | upper }}
+        {{ (session.get('nombre') or 'U')[0] | upper }}
       </div>
     </div>
   </div>

@@ -447,3 +447,21 @@ button { font-family: var(--font); }
     right: 16px; left: 16px; width: auto;
   }
 }
+
+/* ══════════════════════════════════════════════════════════
+   TOKEN OVERRIDES — MODO OSCURO (Añadido)
+   Cambia los colores de las variables cuando data-theme es dark
+══════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  --bg:           #121413; /* Fondo oscuro y sutil */
+  --surface:      #1A1D1A; /* Superficie de tarjetas y barra lateral */
+  --text:         #E2E3E1; /* Texto principal legible */
+  --text-muted:   #919390; /* Texto secundario o gris */
+  --border:       #2A2E2B; /* Bordes suaves para modo oscuro */
+  --shadow:       0 4px 20px rgba(0,0,0,.40); /* Sombra más densation para contraste */
+  
+  /* Ajustes opcionales de contraste para componentes específicos */
+  --primary-light: #002D15; /* Fondo verde opaco para ítems activos */
+  --danger-light:  #3D0A0A; /* Fondo rojo opaco para alertas críticas */
+  --warning-light: #3D2B00; /* Fondo ámbar opaco */
+}

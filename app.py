@@ -12,7 +12,6 @@ from flask import Flask, render_template, request, Response, jsonify, session, r
 from bd import obtenerconexion
 
 from tottusAD import (
-    cambiar_clave,
     obtener_stats_dashboard, obtener_alertas_recientes,
     leer_historial, registrar_historial,
     autenticar_usuario,
@@ -25,13 +24,10 @@ from tottusAD import (
     clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
     eliminar_alerta, actualizar_alerta, actualizar_alerta_sincronizada,
     clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
-    insertar_trabajador  as ad_insertar_trabajador,
-    actualizar_trabajador as actualizar_trabajador,
-    eliminar_trabajador  as ad_eliminar_trabajador,
+    insertar_trabajador, actualizar_trabajador, eliminar_trabajador, cambiar_contrasena, restablecer_contrasena, obtener_sedes_unicas, obtener_roles_unicos,
     clsConteo, leer_conteos, insertar_conteo,
     insertar_conteo_manual,
     contar_alertas,
-    insertar_trabajador
 )
 
 app = Flask(__name__)
@@ -1154,24 +1150,30 @@ def exportar_historial_csv():
 # ==============================================================================
 # CRUD - TRABAJADORES - SECLEN
 # ==============================================================================
+
+# ==============================================================================
+# RUTA - LISTAR
+# ==============================================================================  
 @app.route('/trabajadores')
 def listar_trabajadores():
     try:
         lista = leer_trabajadores() or []
         return render_template('lista_trabajadores.html',
                                active_page='trabajadores',
-                               alertas_count=3, # Dejamos el 3 fijo de tu campana
+                               alertas_count=contar_alertas(), # Dejamos el 3 fijo de tu campana
                                trabajadores=lista)
     except Exception as e:
         print("Error en /trabajadores:", repr(e))
         return mostrar_error("Error al cargar el listado de personal.", 500)
 
+# ==============================================================================
+# RUTA - INSERTAR
+# ==============================================================================  
 @app.route('/trabajadores/nuevo')
 def vista_agregar_trabajador():
     return render_template('trabajador.html',
                            active_page='trabajadores',
                            alertas_count=contar_alertas())
-
 
 @app.route('/insertar_trabajador', methods=['POST'])
 def insertar_trabajador_ruta():
@@ -1186,17 +1188,15 @@ def insertar_trabajador_ruta():
         if not nombre or not codigo_empleado or not sede:
             return mostrar_error("Nombre, codigo de empleado y sede son obligatorios.")
 
-        obj = clsTrabajador(
-            p_nombre=nombre,
-            p_codigo_empleado=codigo_empleado,
-            p_email=email,
-            p_sede=sede,
-            p_rol=rol,
-            p_palabra_clave=palabra_clave,
-            p_password_hash='Tottus2026'
-        )
+        obj = clsTrabajador()
+        obj.nombre = nombre
+        obj.codigo_empleado = codigo_empleado
+        obj.email = email
+        obj.sede = sede
+        obj.rol = rol
+        obj.palabra_clave = palabra_clave
+        obj.password = 'Tottus2026'
 
-        # CORREGIDO: Llama a la función importada de tottusAD
         if insertar_trabajador(obj): 
             return mostrar_exito(
                 'Trabajador registrado correctamente. Clave inicial: Tottus2026',
@@ -1207,19 +1207,29 @@ def insertar_trabajador_ruta():
         print("Error en /insertar_trabajador:", repr(e))
         return mostrar_error("Error interno al registrar el trabajador.", 500)
 
+# ==============================================================================
+# RUTA - ACTUALIZAR
+# ==============================================================================      
 @app.route('/trabajadores/editar/<int:id>')
 def vista_editar_trabajador(id):
     try:
-        trabajador = leer_trabajador_por_id(id)
-        if not trabajador:
-            return mostrar_error("Trabajador no encontrado.", 404)
+        trabajador_obj = leer_trabajador_por_id(id)
+        if not trabajador_obj:
+            return "Trabajador no encontrado.", 404
+            
+        lista_sedes = obtener_sedes_unicas()
+        lista_roles = obtener_roles_unicos()
+        
         return render_template('trabajador_edit.html',
                                active_page='trabajadores',
-                               alertas_count=contar_alertas(),
-                               trabajador=trabajador)
+                               alertas_count=3,
+                               trabajador=trabajador_obj,
+                               sedes=lista_sedes,    
+                               roles=lista_roles)   
+                               
     except Exception as e:
-        print("Error en /trabajadores/editar:", repr(e))
-        return mostrar_error("Error al cargar el trabajador para edicion.", 500)
+        print(f"Error en vista_editar_trabajador: {repr(e)}")
+        return "Error interno al cargar el formulario de edicion.", 500
 
 @app.route('/actualizar_trabajador', methods=['POST'])
 def actualizar_trabajador_ruta():
@@ -1233,31 +1243,33 @@ def actualizar_trabajador_ruta():
         palabra_clave   = request.form.get('palabra_clave', '').strip()
         nueva_password  = request.form.get('nueva_password', '').strip()
 
-        if not nombre or not codigo_empleado or not sede:
-            return mostrar_error("Nombre, codigo de empleado y sede son obligatorios.")
+        if not nueva_password:
+            trab_actual = leer_trabajador_por_id(trab_id)
+            if trab_actual and isinstance(trab_actual, dict):
+                nueva_password = trab_actual.get('password')
 
-        obj = clsTrabajador(
-            p_id=trab_id,
-            p_nombre=nombre,
-            p_codigo_empleado=codigo_empleado,
-            p_email=email,
-            p_sede=sede,
-            p_rol=rol,
-            p_palabra_clave=palabra_clave,
-            p_password_hash=nueva_password if nueva_password else None
-        )
+        obj = clsTrabajador()
+        obj.id = trab_id
+        obj.nombre = nombre
+        obj.codigo_empleado = codigo_empleado
+        obj.email = email
+        obj.sede = sede
+        obj.rol = rol
+        obj.palabra_clave = palabra_clave
+        obj.password = nueva_password
 
-        # CORREGIDO: Se quitó el 'ad_' para llamar a la función real de tottusAD
         if actualizar_trabajador(obj): 
-            return mostrar_exito(
-                'Datos del trabajador actualizados correctamente.',
-                '/trabajadores', 'Ver personal')
+            return redirect(url_for('listar_trabajadores'))
             
-        return mostrar_error("No se pudo actualizar. Verifique que el codigo no este duplicado.")
+        return "Error: Codigo de empleado ya registrado o datos invalidos.", 400
+        
     except Exception as e:
-        print("Error en /actualizar_trabajador:", repr(e))
-        return mostrar_error("Error interno al actualizar el trabajador.", 500)
-    
+        print(f"Error en actualizar_trabajador_ruta: {repr(e)}")
+        return "Error interno al actualizar el registro.", 500
+
+# ==============================================================================
+# RUTA -ELIMINAR
+# ==============================================================================            
 @app.route('/eliminar_trabajador/<int:id>', methods=['POST', 'GET'])
 def eliminar_trabajador_ruta(id):
     try:
@@ -1273,7 +1285,45 @@ def eliminar_trabajador_ruta(id):
         return mostrar_error("Error interno al desactivar el trabajador.", 500)
 
 # ==============================================================================
-# RUTA - RESTABLECER CONTRASENA (Desde el exterior)
+# RUTA - CAMBIO DE CONTRASENA (Desde cambiar_clave.html)
+# ==============================================================================
+@app.route('/cambiar_clave', methods=['GET', 'POST'])
+def cambiar_clave_ruta():
+    if request.method == 'GET':
+        return render_template('cambiar_contraseña.html')
+
+    try:
+        clave_actual    = request.form.get('clave_actual', '').strip()
+        clave_nueva     = request.form.get('clave_nueva', '').strip()
+        clave_confirmar = request.form.get('clave_confirmar', '').strip()
+
+        if not clave_actual or not clave_nueva:
+            return "Ambas claves son requeridas."
+            
+        if clave_nueva != clave_confirmar:  
+            return "La nueva contraseña y su confirmación no coinciden."
+            
+        if len(clave_nueva) < 8 or not any(c.isdigit() for c in clave_nueva):
+            return "La nueva clave debe tener al menos 8 caracteres y contener un número."
+            
+        if clave_actual == clave_nueva:
+            return "La nueva clave debe ser diferente a la actual."
+
+        trabajador_id = session.get('id')
+        if not trabajador_id:
+            return "Sesión no válida o expirada. Por favor, vuelve a loguearte."
+
+        if cambiar_contrasena(trabajador_id, clave_actual, clave_nueva):
+            return redirect(url_for('listar_trabajadores'))
+            
+        return "La contraseña actual es incorrecta."
+
+    except Exception as e:
+        print(f"Error en cambiar_clave_ruta: {repr(e)}")
+        return "Error interno del servidor."
+
+# ==============================================================================
+# RUTA - RESTABLECER CONTRASEÑA
 # ==============================================================================
 @app.route('/restablecer', methods=['GET', 'POST'])
 def restablecer():
@@ -1287,7 +1337,7 @@ def restablecer():
                 return render_template('restablecer.html',
                                        error='El codigo de empleado y la nueva contrasena son obligatorios.')
 
-            if restablecer_clave(codigo, clave_sec, clave_nva):
+            if restablecer_contrasena(codigo, clave_sec, clave_nva):
                 return mostrar_exito(
                     'Contrasena restablecida correctamente.',
                     '/', 'Ir al Login')
@@ -1301,47 +1351,6 @@ def restablecer():
 
     return render_template('restablecer.html', error=None)
 
-
-# ==============================================================================
-# RUTA - CAMBIO DE CONTRASENA (Desde cambiar_clave.html)
-# ==============================================================================
-@app.route('/cambiar_clave', methods=['GET', 'POST'])
-def cambiar_clave_ruta():
-    if request.method == 'GET':
-        return render_template('cambiar_clave.html')
-
-    try:
-        # 1. Captura de los campos del formulario tradicional
-        clave_actual    = request.form.get('clave_actual', '')
-        clave_nueva     = request.form.get('clave_nueva', '')
-        clave_confirmar = request.form.get('clave_confirmar', '')
-
-        # 2. Validaciones (CORREGIDO el guion bajo)
-        if not clave_actual or not clave_nueva:
-            return mostrar_error("Ambas claves son requeridas.")
-        if clave_nueva != clave_confirmar:  # <--- CORREGIDO: ahora sí tiene el guion bajo
-            return mostrar_error("La nueva contraseña y su confirmación no coinciden.")
-        if len(clave_nueva) < 8:
-            return mostrar_error("La nueva clave debe tener al menos 8 caracteres.")
-        if not any(c.isdigit() for c in clave_nueva):
-            return mostrar_error("La nueva clave debe contener al menos un numero.")
-        if clave_actual == clave_nueva:
-            return mostrar_error("La nueva clave debe ser diferente a la actual.")
-
-        # 3. Obtener ID del usuario en sesión
-        trabajador_id = session.get('id', 1)
-
-        # 4. Modificar en la Base de Datos
-        if cambiar_clave(trabajador_id, clave_actual, clave_nueva):
-            return mostrar_exito(
-                'Contrasena actualizada correctamente.',
-                '/perfil', 'Volver al perfil')
-            
-        return mostrar_error("La contrasena actual es incorrecta.")
-    except Exception as e:
-        print("Error en /cambiar_clave:", repr(e))
-        return mostrar_error("Error interno al cambiar la contrasena.", 500)
-    
 # ==============================================================================
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
