@@ -27,6 +27,8 @@ from tottusAD import (
     insertar_conteo_manual,
     contar_alertas,
     leer_productos_basico,
+    obtener_alertas_dinamicas, validar_stock_disponible,
+    verificar_dependencias_producto, verificar_dependencias_trabajador
 )
 
 app = Flask(__name__)
@@ -55,70 +57,13 @@ def mostrar_error(mensaje, status=400):
 # INTEGRIDAD REFERENCIAL - VALIDACIONES DE DEPENDENCIA
 # ==============================================================================
 def _verificar_dependencias_producto(prod_id):
-    """
-    Verifica si un producto tiene dependencias activas en otras tablas.
-    Retorna None si puede eliminarse, o un string con el motivo de bloqueo.
-    """
-    try:
-        conn = obtenerconexion()
-        if not conn:
-            return "No se pudo verificar dependencias: sin conexion a la base de datos."
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM segmentacion_inventario WHERE producto_id=%s AND activo=1",
-                    (prod_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El producto tiene segmentaciones activas asociadas. Elimine primero las segmentaciones."
-
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM alertas_quiebre WHERE producto_id=%s AND activo=1",
-                    (prod_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El producto tiene alertas de quiebre activas. Desactive primero las alertas."
-
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM conteos_manuales WHERE producto_id=%s",
-                    (prod_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El producto tiene conteos manuales registrados. No puede eliminarse por integridad de datos."
-
-        return None
-    except Exception as e:
-        return f"Error al verificar dependencias: {repr(e)}"
+    """Capa de controlador: delega validacion a tottusAD."""
+    return verificar_dependencias_producto(prod_id)
 
 
 def _verificar_dependencias_trabajador(usuario_id):
-    """
-    Verifica si un trabajador tiene dependencias activas en otras tablas.
-    Retorna None si puede eliminarse, o un string con el motivo de bloqueo.
-    """
-    try:
-        conn = obtenerconexion()
-        if not conn:
-            return "No se pudo verificar dependencias: sin conexion a la base de datos."
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM conteos_manuales WHERE usuario_id=%s",
-                    (usuario_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El trabajador tiene conteos manuales registrados. No puede eliminarse por integridad de datos."
-
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM historial_ajustes WHERE usuario_id=%s",
-                    (usuario_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El trabajador tiene registros en el historial de ajustes. No puede eliminarse por integridad de datos."
-
-        return None
-    except Exception as e:
-        return f"Error al verificar dependencias: {repr(e)}"
+    """Capa de controlador: delega validacion a tottusAD."""
+    return verificar_dependencias_trabajador(usuario_id)
 
 
 # ==============================================================================
@@ -205,59 +150,7 @@ def api_dashboard_graficos():
 
 def _obtener_datos_alertas(modo='estatico'):
     if modo == 'dinamico':
-        conn = obtenerconexion()
-        # Traer alertas activas con stock_total y venta_dia estatico
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT a.id, a.producto_id, a.producto, a.sku, a.categoria,
-                           p.stock_total AS unidades, p.venta_dia, a.estado_transf
-                    FROM alertas_quiebre a
-                    JOIN productos p ON a.producto_id = p.id
-                    WHERE a.activo = 1
-                """)
-                alertas_raw = cursor.fetchall()
-
-                lista_alertas = []
-                total_critico = 0
-                total_urgente = 0
-                total_ok = 0
-
-                for a in alertas_raw:
-                    pred = calcular_prediccion_dinamica(
-                        conn,
-                        a['producto_id'],
-                        a['unidades'],
-                        a['venta_dia']
-                    )
-
-                    item = {
-                        'id': a['id'],
-                        'producto_id': a['producto_id'],
-                        'producto': a['producto'],
-                        'sku': a['sku'],
-                        'categoria': a['categoria'],
-                        'unidades': a['unidades'],
-                        'venta_dia': pred['venta_dia_real'],
-                        'horas_restantes': pred['horas_restantes_real'],
-                        'nivel': pred['nivel_real'],
-                        'estado_transf': a['estado_transf']
-                    }
-
-                    if item['nivel'] == 'critico': total_critico += 1
-                    elif item['nivel'] == 'urgente': total_urgente += 1
-                    else: total_ok += 1
-
-                    lista_alertas.append(item)
-
-                # Ordenar por horas restantes
-                lista_alertas.sort(key=lambda x: x['horas_restantes'])
-
-                totales = {
-                    'critico': total_critico,
-                    'urgente': total_urgente,
-                    'ok': total_ok
-                }
+        lista_alertas, totales = obtener_alertas_dinamicas()
     else:
         lista_alertas = obtener_alertas_activas()
         totales = obtener_totales_alertas()
@@ -698,20 +591,9 @@ def guardar_segmentacion_ruta():
         motivo           = request.form.get('motivo', '')
 
         # Validacion de stock disponible
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT stock_total FROM productos WHERE id=%s AND activo=1", (producto_id,))
-                    prod = cursor.fetchone()
-                    if not prod:
-                        return mostrar_error("Producto no encontrado o inactivo.")
-
-                    if (stock_final + stock_revendedor > prod['stock_total']):
-                        return mostrar_error(
-                            f"Stock insuficiente. Disponible: {prod['stock_total']}, "
-                            f"Solicitado: {stock_final + stock_revendedor}"
-                        )
+        error = validar_stock_disponible(producto_id, stock_final + stock_revendedor)
+        if error:
+            return mostrar_error(error)
 
         # Insertar segmentacion
         objSegmentacion = clsSegmentacion(
@@ -741,24 +623,16 @@ def actualizar_segmentacion_ruta():
         stock_revendedor = int(request.form.get('stock_revendedor', 0))
         motivo           = request.form.get('motivo', '')
 
-        anterior = None
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT s.*, p.stock_total FROM segmentacion_inventario s
-                        JOIN productos p ON s.producto_id = p.id WHERE s.id=%s
-                    """, (seg_id,))
-                    anterior = cursor.fetchone()
-                    if not anterior:
-                        return mostrar_error("Segmentacion no encontrada.")
+        anterior = obtener_segmentacion_xID(seg_id)
+        if not anterior:
+            return mostrar_error("Segmentacion no encontrada.")
 
-                    if (stock_final + stock_revendedor > anterior['stock_total']):
-                        return mostrar_error(
-                            f"Stock insuficiente. Disponible: {anterior['stock_total']}, "
-                            f"Solicitado: {stock_final + stock_revendedor}"
-                        )
+        producto_id = anterior['producto_id']
+
+        # Validacion de stock disponible
+        error = validar_stock_disponible(producto_id, stock_final + stock_revendedor)
+        if error:
+            return mostrar_error(error)
 
         objSegmentacion = clsSegmentacion(
             id=seg_id,
@@ -770,15 +644,14 @@ def actualizar_segmentacion_ruta():
         )
 
         if actualizar_segmentacion(objSegmentacion):
-            if anterior:
-                registrar_historial(
-                    p_producto_id=anterior['producto_id'],
-                    p_accion='UPDATE',
-                    p_campo='segmentacion_stock',
-                    p_anterior=f"F:{anterior['stock_cliente_final']} R:{anterior['stock_revendedor']}",
-                    p_nuevo=f"F:{stock_final} R:{stock_revendedor}",
-                    p_motivo=motivo
-                )
+            registrar_historial(
+                p_producto_id=producto_id,
+                p_accion='UPDATE',
+                p_campo='segmentacion_stock',
+                p_anterior=f"F:{anterior['stock_cliente_final']} R:{anterior['stock_revendedor']}",
+                p_nuevo=f"F:{stock_final} R:{stock_revendedor}",
+                p_motivo=motivo
+            )
             return mostrar_exito('Segmentacion actualizada correctamente.', '/segmentacion')
         else:
             return mostrar_error("No se pudo actualizar la segmentacion.")
@@ -794,15 +667,9 @@ def eliminar_segmentacion_ruta(seg_id):
     adicionales que bloqueen su eliminacion - se permite directo.
     """
     try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT producto_id FROM segmentacion_inventario WHERE id=%s", (seg_id,))
-                    row = cursor.fetchone()
-                    if row:
-                        registrar_historial(row['producto_id'], 'DELETE', p_motivo='Segmentacion eliminada')
-                conn.commit()
+        row = obtener_segmentacion_xID(seg_id)
+        if row:
+            registrar_historial(row['producto_id'], 'DELETE', p_motivo='Segmentacion eliminada')
 
         if eliminar_segmentacion(seg_id):
             return mostrar_exito('Segmentacion eliminada correctamente.', '/segmentacion')
@@ -815,18 +682,12 @@ def eliminar_segmentacion_ruta(seg_id):
 @app.route('/toggle_segmentacion/<int:seg_id>')
 def toggle_segmentacion_ruta(seg_id):
     try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT producto_id, activo FROM segmentacion_inventario WHERE id=%s", (seg_id,))
-                    row = cursor.fetchone()
-                    if row:
-                        registrar_historial(row['producto_id'], 'TOGGLE',
-                                            p_campo='activo',
-                                            p_anterior=row['activo'],
-                                            p_nuevo=1 - row['activo'])
-                conn.commit()
+        row = obtener_segmentacion_xID(seg_id)
+        if row:
+            registrar_historial(row['producto_id'], 'TOGGLE',
+                                p_campo='activo',
+                                p_anterior=row['activo'],
+                                p_nuevo=1 - row['activo'])
 
         if toggle_segmentacion(seg_id):
             datos = _obtener_datos_segmentacion()
@@ -939,84 +800,6 @@ def api_guardar_conteo():
         return jsonify({"code": 0, "message": "Error al registrar el conteo"})
     except Exception as e:
         return jsonify({"code": -1, "message": repr(e)})
-
-
-# ==============================================================================
-# ALERTAS - Prediccion dinamica - Gianella Torres
-# ==============================================================================
-def calcular_prediccion_dinamica(conn, producto_id, stock_actual, static_venta_dia):
-    try:
-        with conn.cursor() as cursor:
-            sql = """
-                SELECT valor_anterior, valor_nuevo, fecha
-                FROM historial_ajustes
-                WHERE producto_id = %s
-                  AND (campo_modificado = 'stock_total' OR accion = 'CONTEO')
-                  AND fecha >= NOW() - INTERVAL 14 DAY
-                ORDER BY fecha ASC
-            """
-            cursor.execute(sql, (producto_id,))
-            rows = cursor.fetchall()
-
-            reducciones = 0
-            oldest_fecha = None
-
-            for row in rows:
-                try:
-                    val_ant = int(row['valor_anterior']) if row['valor_anterior'] is not None else 0
-                    val_nue = int(row['valor_nuevo'])    if row['valor_nuevo']    is not None else 0
-                    if val_ant > val_nue:
-                        reducciones += (val_ant - val_nue)
-                        if oldest_fecha is None:
-                            oldest_fecha = row['fecha']
-                except (ValueError, TypeError):
-                    continue
-
-            if oldest_fecha and reducciones > 0:
-                delta = datetime.now() - oldest_fecha
-                days = delta.total_seconds() / 86400.0
-                days = max(days, 1.0)  # Al menos 1 dia para evitar valores atipicos
-                venta_dia_real = reducciones / days
-            else:
-                venta_dia_real = float(static_venta_dia or 0)
-
-            if venta_dia_real > 0:
-                horas_restantes = (stock_actual / venta_dia_real) * 24.0
-            else:
-                horas_restantes = 9999.0
-
-            if venta_dia_real <= 0:
-                nivel = 'ok'
-            elif horas_restantes <= 24:
-                nivel = 'critico'
-            elif horas_restantes <= 72:
-                nivel = 'urgente'
-            elif horas_restantes <= 120:
-                nivel = 'advertencia'
-            else:
-                nivel = 'ok'
-
-            return {
-                'venta_dia_real': round(venta_dia_real, 2),
-                'horas_restantes_real': round(horas_restantes, 1),
-                'nivel_real': nivel,
-                'usando_historial': oldest_fecha is not None and reducciones > 0
-            }
-    except Exception:
-        # Fallback si ocurre algun error
-        venta_dia_real = float(static_venta_dia or 0)
-        horas = (stock_actual / venta_dia_real * 24) if venta_dia_real > 0 else 9999.0
-        nivel = 'ok'
-        if venta_dia_real > 0:
-            if horas <= 24:   nivel = 'critico'
-            elif horas <= 72: nivel = 'urgente'
-            elif horas <= 120: nivel = 'advertencia'
-        return {
-            'venta_dia_real': round(venta_dia_real, 2),
-            'horas_restantes_real': round(horas, 1),
-            'nivel_real': nivel,
-            'usando_historial': False
-        }
 
 
 @app.route('/listar_alertas')
