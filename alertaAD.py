@@ -101,7 +101,8 @@ def obtener_alertas_dinamicas():
             with conn.cursor() as cursor:
                 cursor.execute("""
                     SELECT a.id, a.producto_id, a.producto, a.sku, a.categoria,
-                           p.stock_total AS unidades, p.venta_dia, a.estado_transf
+                           p.stock_total AS unidades, p.venta_dia, a.estado_transf,
+                           a.stock_minimo
                     FROM alertas_quiebre a
                     JOIN productos p ON a.producto_id = p.id
                     WHERE a.activo = 1
@@ -128,6 +129,7 @@ def obtener_alertas_dinamicas():
                         'sku': a['sku'],
                         'categoria': a['categoria'],
                         'unidades': a['unidades'],
+                        'stock_minimo': a['stock_minimo'],
                         'venta_dia': pred['venta_dia_real'],
                         'horas_restantes': pred['horas_restantes_real'],
                         'nivel': pred['nivel_real'],
@@ -160,11 +162,15 @@ def obtener_alertas_activas():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql  = " SELECT id, sku, producto, "
-                    sql += "        categoria, nivel, unidades, venta_dia, "
-                    sql += "        horas_restantes, estado_transf, "
-                    sql += "        stock_total, ubicacion_gondola "
-                    sql += "   FROM v_alertas_activas "
+                    sql  = " SELECT a.id, a.sku, a.producto, "
+                    sql += "        a.categoria, a.nivel, p.stock_total AS unidades, "
+                    sql += "        a.stock_minimo, a.venta_dia, "
+                    sql += "        a.horas_restantes, a.estado_transf, "
+                    sql += "        p.stock_total, p.ubicacion_gondola "
+                    sql += "   FROM alertas_quiebre a "
+                    sql += "   JOIN productos p ON a.producto_id = p.id "
+                    sql += "  WHERE a.activo = 1 "
+                    sql += "  ORDER BY a.horas_restantes ASC "
                     cursor.execute(sql)
                     alertas = cursor.fetchall()
         return alertas

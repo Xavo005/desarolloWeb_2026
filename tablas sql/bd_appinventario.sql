@@ -72,6 +72,7 @@ CREATE TABLE `alertas_quiebre` (
     `sku`             VARCHAR(50)   NOT NULL,
     `categoria`       VARCHAR(50),
     `unidades`        INT           NOT NULL,
+    `stock_minimo`    INT           NOT NULL DEFAULT 0, 
     `venta_dia`       DECIMAL(8,2)  NOT NULL DEFAULT 0,
     `horas_restantes` DECIMAL(8,2)  GENERATED ALWAYS AS (
                           CASE WHEN `venta_dia` > 0
@@ -142,7 +143,8 @@ SELECT
     a.sku,
     a.producto,
     a.categoria,
-    a.unidades,
+    p.stock_total       AS unidades,
+    a.stock_minimo,
     a.venta_dia,
     a.horas_restantes,
     a.nivel,
@@ -223,13 +225,13 @@ VALUES
 -- DATOS SEMILLA — ALERTAS DE QUIEBRE
 -- ==========================================
 INSERT INTO `alertas_quiebre`
-    (`producto_id`, `producto`, `sku`, `categoria`, `unidades`, `venta_dia`, `estado_transf`)
+    (`producto_id`, `producto`, `sku`, `categoria`, `unidades`, `stock_minimo`, `venta_dia`, `estado_transf`)
 VALUES
-    (1, 'Leche Gloria Entera 1L',  'LAC-001', 'Lácteos',   12,  8.0, 'Transferencia en tránsito'),
-    (2, 'Arroz Costeño 5kg',       'ARR-002', 'Granos',    45, 15.0, 'Pedido generado'),
-    (4, 'Azúcar Rubia 1kg',        'AZU-004', 'Abarrotes', 58, 12.0, 'Sin transferencia activa'),
-    (5, 'Detergente Ariel 2kg',    'DET-005', 'Limpieza',   8,  5.0, 'Urgente - sin stock en CD'),
-    (7, 'Yogurt Gloria Fresa 1L',  'YOG-007', 'Lácteos',   60, 10.0, 'Sin transferencia activa');
+    (1, 'Leche Gloria Entera 1L',  'LAC-001', 'Lácteos',   12,  20,  8.0, 'Transferencia en tránsito'),
+    (2, 'Arroz Costeño 5kg',       'ARR-002', 'Granos',    45,  30, 15.0, 'Pedido generado'),
+    (4, 'Azúcar Rubia 1kg',        'AZU-004', 'Abarrotes', 58,  40, 12.0, 'Sin transferencia activa'),
+    (5, 'Detergente Ariel 2kg',    'DET-005', 'Limpieza',   8,  15,  5.0, 'Urgente - sin stock en CD'),
+    (7, 'Yogurt Gloria Fresa 1L',  'YOG-007', 'Lácteos',   60,  25, 10.0, 'Sin transferencia activa');
 
 
 -- ==========================================
@@ -260,3 +262,4 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- FIN DEL SCRIPT
 -- Acceso inicial: codigo=ADMIN-001  clave=admin123
 -- ==========================================
+==============

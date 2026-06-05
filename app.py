@@ -9,26 +9,31 @@ from flask import (
 )
 
 from tottusAD import (
-    obtener_stats_dashboard, obtener_alertas_recientes,
-    obtener_datos_graficos_dashboard,
     leer_historial, registrar_historial,
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
     insertar_producto, actualizar_producto, eliminar_producto,
     buscar_sku,
-    clsSegmentacion, obtener_segmentaciones, obtener_segmentacion_xID,
-    insertar_segmentacion, actualizar_segmentacion,
-    eliminar_segmentacion, toggle_segmentacion,
-    clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
-    eliminar_alerta, actualizar_alerta, actualizar_alerta_sincronizada,
     clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
     insertar_trabajador, actualizar_trabajador, eliminar_trabajador, cambiar_contrasena, restablecer_contrasena, obtener_sedes_unicas, obtener_roles_unicos,
     clsConteo, leer_conteos, insertar_conteo,
     insertar_conteo_manual,
-    contar_alertas,
-    leer_productos_basico,
-    obtener_alertas_dinamicas, validar_stock_disponible,
     verificar_dependencias_producto, verificar_dependencias_trabajador
+)
+
+from alertaAD import (
+    clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
+    eliminar_alerta, actualizar_alerta, actualizar_alerta_sincronizada,
+    obtener_alertas_dinamicas, calcular_prediccion_dinamica, contar_alertas
+)
+from segmentacionAD import (
+    clsSegmentacion, obtener_segmentaciones, obtener_segmentacion_xID,
+    insertar_segmentacion, actualizar_segmentacion, eliminar_segmentacion,
+    toggle_segmentacion, validar_stock_disponible
+)
+from dashboardAD import (
+    obtener_stats_dashboard, obtener_alertas_recientes,
+    obtener_datos_graficos_dashboard, leer_productos_basico
 )
 
 app = Flask(__name__)

@@ -101,20 +101,35 @@
 
         <!-- Métricas -->
         <div class="alert-metrics">
-          <div class="alert-metric">
-            <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">{{ a.unidades }}</div>
-            <div class="metric-lbl">unidades</div>
-          </div>
-          <div class="alert-metric">
-            <div class="metric-val">{{ a.venta_dia }}</div>
-            <div class="metric-lbl">unid./día</div>
-          </div>
-          <div class="alert-metric">
-            <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
-              {{ a.horas_restantes | round(0) | int }}h
+          {% if modo == 'dinamico' %}
+            <div class="alert-metric">
+              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">{{ a.unidades }}</div>
+              <div class="metric-lbl">unidades</div>
             </div>
-            <div class="metric-lbl">restantes</div>
-          </div>
+            <div class="alert-metric">
+              <div class="metric-val">{{ a.venta_dia }}</div>
+              <div class="metric-lbl">unid./día</div>
+            </div>
+            <div class="alert-metric">
+              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
+                {{ a.horas_restantes | round(0) | int }}h
+              </div>
+              <div class="metric-lbl">restantes</div>
+            </div>
+          {% else %}
+            <div class="alert-metric">
+              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">{{ a.unidades }}</div>
+              <div class="metric-lbl">unidades</div>
+            </div>
+            <div class="alert-metric">
+              <div class="metric-val">{{ a.stock_minimo }}</div>
+              <div class="metric-lbl">stock mín.</div>
+            </div>
+            <div class="alert-metric">
+              <div class="metric-val">{{ a.venta_dia }}</div>
+              <div class="metric-lbl">unid./día</div>
+            </div>
+          {% endif %}
         </div>
 
         <!-- Progress Bar -->

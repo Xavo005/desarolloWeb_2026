@@ -2,24 +2,6 @@ from datetime import datetime
 from bd import obtenerconexion
 
 # ==============================================================================
-# FACADE PATTERN - IMPORTS DESDE MODULOS SEPARADOS
-# ==============================================================================
-from alertaAD import (
-    clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
-    eliminar_alerta, actualizar_alerta, actualizar_alerta_sincronizada,
-    obtener_alertas_dinamicas, calcular_prediccion_dinamica, contar_alertas
-)
-from segmentacionAD import (
-    clsSegmentacion, obtener_segmentaciones, obtener_segmentacion_xID,
-    insertar_segmentacion, actualizar_segmentacion, eliminar_segmentacion,
-    toggle_segmentacion, validar_stock_disponible
-)
-from dashboardAD import (
-    obtener_stats_dashboard, obtener_alertas_recientes,
-    obtener_datos_graficos_dashboard, leer_productos_basico
-)
-
-# ==============================================================================
 # CLASES DE ENTIDAD - PRODUCTO Xavier Ruiz Guevara
 # ==============================================================================
 class clsProducto:
