@@ -1,4 +1,4 @@
-DROP DATABASE IF EXISTS `tottus_sgi`;
+﻿DROP DATABASE IF EXISTS `tottus_sgi`;
 CREATE DATABASE `tottus_sgi`
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
@@ -262,4 +262,3 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- FIN DEL SCRIPT
 -- Acceso inicial: codigo=ADMIN-001  clave=admin123
 -- ==========================================
-==============

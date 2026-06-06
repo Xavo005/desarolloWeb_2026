@@ -8,7 +8,7 @@ from flask import (
     session, redirect, url_for, stream_with_context
 )
 
-from procutosAD import (
+from productosAD import (
     leer_historial, registrar_historial,
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
@@ -1029,7 +1029,7 @@ def eliminar_trabajador_ruta(id):
 @app.route('/cambiar_clave', methods=['GET', 'POST'])
 def cambiar_clave_ruta():
     if request.method == 'GET':
-        return render_template('cambiar_contraseña.html')
+        return render_template('cambiar_clave.html')
 
     try:
         clave_actual    = request.form.get('clave_actual', '').strip()
@@ -1037,29 +1037,29 @@ def cambiar_clave_ruta():
         clave_confirmar = request.form.get('clave_confirmar', '').strip()
 
         if not clave_actual or not clave_nueva:
-            return "Ambas claves son requeridas."
+            return mostrar_error("Ambas claves son requeridas.", 400)
             
-        if clave_nueva != clave_confirmar:  
-            return "La nueva contraseña y su confirmación no coinciden."
+        if clave_nueva != clave_confirmar:
+            return mostrar_error("La nueva contrasena y su confirmacion no coinciden.", 400)
             
         if len(clave_nueva) < 8 or not any(c.isdigit() for c in clave_nueva):
-            return "La nueva clave debe tener al menos 8 caracteres y contener un número."
+            return mostrar_error("La nueva clave debe tener al menos 8 caracteres y contener un numero.", 400)
             
         if clave_actual == clave_nueva:
-            return "La nueva clave debe ser diferente a la actual."
+            return mostrar_error("La nueva clave debe ser diferente a la actual.", 400)
 
         trabajador_id = session.get('id')
         if not trabajador_id:
-            return "Sesión no válida o expirada. Por favor, vuelve a loguearte."
+            return mostrar_error("Sesion no valida o expirada. Por favor, vuelve a loguearte.", 401)
 
         if cambiar_contrasena(trabajador_id, clave_actual, clave_nueva):
             return redirect(url_for('listar_trabajadores'))
             
-        return "La contraseña actual es incorrecta."
+        return mostrar_error("La contrasena actual es incorrecta.", 400)
 
     except Exception as e:
         print(f"Error en cambiar_clave_ruta: {repr(e)}")
-        return "Error interno del servidor."
+        return mostrar_error("Error interno del servidor.", 500)
 
 # ==============================================================================
 # RUTA - RESTABLECER CONTRASEÑA
