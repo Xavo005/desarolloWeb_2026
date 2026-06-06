@@ -14,8 +14,6 @@ from tottusAD import (
     clsProducto, leer_productos, leer_producto_por_id,
     insertar_producto, actualizar_producto, eliminar_producto,
     buscar_sku,
-    clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
-    insertar_trabajador, actualizar_trabajador, eliminar_trabajador, cambiar_contrasena, restablecer_contrasena, obtener_sedes_unicas, obtener_roles_unicos,
     clsConteo, leer_conteos, insertar_conteo,
     insertar_conteo_manual,
     verificar_dependencias_producto, verificar_dependencias_trabajador
@@ -36,9 +34,14 @@ from dashboardAD import (
     obtener_datos_graficos_dashboard, leer_productos_basico
 )
 
+from usuarioAD import (
+clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
+    insertar_trabajador, actualizar_trabajador, eliminar_trabajador,
+    cambiar_contrasena, restablecer_contrasena
+)
+
 app = Flask(__name__)
 app.secret_key = 'tottus_sgi_secret_2026'
-
 
 # ==============================================================================
 # FUNCIONES AUXILIARES CENTRALIZADAS
@@ -922,8 +925,8 @@ def insertar_trabajador_ruta():
         nombre          = request.form.get('nombre', '').strip()
         codigo_empleado = request.form.get('codigo_empleado', '').strip().upper()
         email           = request.form.get('email', '').strip()
-        sede            = request.form.get('sede', '').strip()
-        rol             = request.form.get('rol', 'operario').strip()
+        sede            = request.form.get('sede', '').strip().lower()
+        rol             = request.form.get('rol', 'operario').strip().lower()
         palabra_clave   = request.form.get('palabra_clave', '').strip()
 
         if not nombre or not codigo_empleado or not sede:
@@ -947,7 +950,7 @@ def insertar_trabajador_ruta():
     except Exception as e:
         print("Error en /insertar_trabajador:", repr(e))
         return mostrar_error("Error interno al registrar el trabajador.", 500)
-
+    
 # ==============================================================================
 # RUTA - ACTUALIZAR
 # ==============================================================================      
@@ -957,16 +960,11 @@ def vista_editar_trabajador(id):
         trabajador_obj = leer_trabajador_por_id(id)
         if not trabajador_obj:
             return "Trabajador no encontrado.", 404
-            
-        lista_sedes = obtener_sedes_unicas()
-        lista_roles = obtener_roles_unicos()
         
         return render_template('trabajador_edit.html',
                                active_page='trabajadores',
-                               alertas_count=3,
-                               trabajador=trabajador_obj,
-                               sedes=lista_sedes,    
-                               roles=lista_roles)   
+                               alertas_count=contar_alertas(),
+                               trabajador=trabajador_obj)   
                                
     except Exception as e:
         print(f"Error en vista_editar_trabajador: {repr(e)}")
@@ -979,8 +977,8 @@ def actualizar_trabajador_ruta():
         nombre          = request.form.get('nombre', '').strip()
         codigo_empleado = request.form.get('codigo_empleado', '').strip().upper()
         email           = request.form.get('email', '').strip()
-        sede            = request.form.get('sede', '').strip()
-        rol             = request.form.get('rol', 'operario').strip()
+        sede            = request.form.get('sede', '').strip().lower()
+        rol             = request.form.get('rol', 'operario').strip().lower()
         palabra_clave   = request.form.get('palabra_clave', '').strip()
         nueva_password  = request.form.get('nueva_password', '').strip()
 
@@ -1007,7 +1005,7 @@ def actualizar_trabajador_ruta():
     except Exception as e:
         print(f"Error en actualizar_trabajador_ruta: {repr(e)}")
         return "Error interno al actualizar el registro.", 500
-
+    
 # ==============================================================================
 # RUTA -ELIMINAR
 # ==============================================================================            

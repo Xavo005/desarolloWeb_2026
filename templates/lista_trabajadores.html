@@ -48,7 +48,7 @@
                 <i class="fa-solid fa-pen-to-square"></i>
               </a>
               
-              {% if session.get('rol') in ['gerente', 'tecnico'] %}
+              {% if session.get('rol') in ['gerente'] %}
                 <a href="#"
                    data-url="{{ url_for('eliminar_trabajador_ruta', id=t.id) }}"
                    data-nombre="{{ t.nombre }}"

@@ -31,22 +31,15 @@
 <div class="form-group">
         <label>Sede</label>
         <select name="sede" required>
-          {% for s in sedes %}
-            <option value="{{ s.nombre }}" {% if trabajador.sede|lower == s.nombre|lower %}selected{% endif %}>
-              {{ s.nombre }}
-            </option>
-          {% endfor %}
+          <option value="Chiclayo" {% if trabajador.sede|lower == 'chiclayo' %}selected{% endif %}>Chiclayo</option>
         </select>
       </div>
 
       <div class="form-group">
         <label>Rol / Perfil</label>
         <select name="rol" required>
-          {% for r in roles %}
-            <option value="{{ r.nombre|lower }}" {% if trabajador.rol|lower == r.nombre|lower %}selected{% endif %}>
-              {{ r.nombre|capitalize }}
-            </option>
-          {% endfor %}
+          <option value="operario" {% if trabajador.rol|lower == 'operario' %}selected{% endif %}>Operario</option>
+          <option value="gerente" {% if trabajador.rol|lower == 'gerente' %}selected{% endif %}>Gerente</option>
         </select>
       </div>
 
