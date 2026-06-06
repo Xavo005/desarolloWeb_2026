@@ -8,7 +8,7 @@ from flask import (
     session, redirect, url_for, stream_with_context
 )
 
-from tottusAD import (
+from procutosAD import (
     leer_historial, registrar_historial,
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
