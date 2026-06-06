@@ -1,38 +1,49 @@
-﻿DROP DATABASE IF EXISTS `tottus_sgi`;
-CREATE DATABASE `tottus_sgi`
+-- ============================================================
+--  EL HUECO RESTOBAR — SCHEMA DE BASE DE DATOS
+--  Archivo : schema_elhueco.sql
+--  Versión : 2.0  |  Fecha: 2026-06-06
+--  Contiene: CREATE DATABASE + tablas + vistas + FK
+--  SIN INSERT — usar inserts_elhueco.sql para datos semilla
+-- ============================================================
+
+DROP DATABASE IF EXISTS `elHueco`;
+CREATE DATABASE `elHueco`
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 
-USE `tottus_sgi`;
+USE `elHueco`;
 
 SET FOREIGN_KEY_CHECKS = 0;
 
 
--- ==========================================
+-- ============================================================
 -- TABLA: USUARIOS
--- ==========================================
+-- Roles de negocio El Hueco: operario / gerente
+-- ============================================================
 CREATE TABLE `usuarios` (
     `id`              INT          AUTO_INCREMENT PRIMARY KEY,
     `codigo_empleado` VARCHAR(20)  UNIQUE NOT NULL,
     `nombre`          VARCHAR(100) NOT NULL,
     `email`           VARCHAR(100) UNIQUE,
-    `password`        VARCHAR(20) NOT NULL,
+    `password`        VARCHAR(20)  NOT NULL,
     `rol`             ENUM('operario','gerente') DEFAULT 'operario',
     `sede`            VARCHAR(100) DEFAULT 'Chiclayo',
-    `palabra_clave`   VARCHAR(100) not null,
+    `palabra_clave`   VARCHAR(100) NOT NULL,
     `activo`          TINYINT(1)   DEFAULT 1,
-    `ultimo_login`    DATETIME null,
+    `ultimo_login`    DATETIME     NULL,
     `created_at`      DATETIME     DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
--- ==========================================
+
+-- ============================================================
 -- TABLA: PRODUCTOS
--- ==========================================
+-- sku VARCHAR(50) -> soporta EAN-13 (13 chars) y codigos internos
+-- ============================================================
 CREATE TABLE `productos` (
     `id`                INT           AUTO_INCREMENT PRIMARY KEY,
     `sku`               VARCHAR(50)   UNIQUE NOT NULL,
-    `nombre`            VARCHAR(100)  NOT NULL,
-    `categoria`         VARCHAR(50),
+    `nombre`            VARCHAR(150)  NOT NULL,
+    `categoria`         VARCHAR(60),
     `stock_total`       INT           NOT NULL DEFAULT 0,
     `ubicacion_gondola` VARCHAR(100),
     `precio_unitario`   DECIMAL(10,2),
@@ -42,9 +53,9 @@ CREATE TABLE `productos` (
 ) ENGINE=InnoDB;
 
 
--- ==========================================
+-- ============================================================
 -- TABLA: SEGMENTACION_INVENTARIO
--- ==========================================
+-- ============================================================
 CREATE TABLE `segmentacion_inventario` (
     `id`                       INT        AUTO_INCREMENT PRIMARY KEY,
     `producto_id`              INT        NOT NULL,
@@ -62,17 +73,18 @@ CREATE TABLE `segmentacion_inventario` (
 ) ENGINE=InnoDB;
 
 
--- ==========================================
+-- ============================================================
 -- TABLA: ALERTAS_QUIEBRE
--- ==========================================
+-- horas_restantes y nivel son columnas GENERATED (calculadas)
+-- ============================================================
 CREATE TABLE `alertas_quiebre` (
     `id`              INT           AUTO_INCREMENT PRIMARY KEY,
     `producto_id`     INT,
-    `producto`        VARCHAR(100)  NOT NULL,
+    `producto`        VARCHAR(150)  NOT NULL,
     `sku`             VARCHAR(50)   NOT NULL,
-    `categoria`       VARCHAR(50),
+    `categoria`       VARCHAR(60),
     `unidades`        INT           NOT NULL,
-    `stock_minimo`    INT           NOT NULL DEFAULT 0, 
+    `stock_minimo`    INT           NOT NULL DEFAULT 0,
     `venta_dia`       DECIMAL(8,2)  NOT NULL DEFAULT 0,
     `horas_restantes` DECIMAL(8,2)  GENERATED ALWAYS AS (
                           CASE WHEN `venta_dia` > 0
@@ -96,9 +108,9 @@ CREATE TABLE `alertas_quiebre` (
 ) ENGINE=InnoDB;
 
 
--- ==========================================
+-- ============================================================
 -- TABLA: CONTEOS_MANUALES
--- ==========================================
+-- ============================================================
 CREATE TABLE `conteos_manuales` (
     `id`            INT       AUTO_INCREMENT PRIMARY KEY,
     `producto_id`   INT       NOT NULL,
@@ -114,9 +126,9 @@ CREATE TABLE `conteos_manuales` (
 ) ENGINE=InnoDB;
 
 
--- ==========================================
+-- ============================================================
 -- TABLA: HISTORIAL_AJUSTES
--- ==========================================
+-- ============================================================
 CREATE TABLE `historial_ajustes` (
     `id`               INT           AUTO_INCREMENT PRIMARY KEY,
     `producto_id`      INT           NOT NULL,
@@ -133,9 +145,9 @@ CREATE TABLE `historial_ajustes` (
 ) ENGINE=InnoDB;
 
 
--- ==========================================
+-- ============================================================
 -- VISTA: V_ALERTAS_ACTIVAS
--- ==========================================
+-- ============================================================
 CREATE OR REPLACE VIEW `v_alertas_activas` AS
 SELECT
     a.id,
@@ -157,9 +169,9 @@ WHERE a.activo = 1
 ORDER BY a.horas_restantes ASC;
 
 
--- ==========================================
+-- ============================================================
 -- VISTA: V_HISTORIAL_COMPLETO
--- ==========================================
+-- ============================================================
 CREATE OR REPLACE VIEW `v_historial_completo` AS
 SELECT
     h.id,
@@ -179,86 +191,9 @@ JOIN `usuarios`  u ON h.usuario_id  = u.id
 ORDER BY h.fecha DESC;
 
 
--- ==========================================
--- DATOS DE INSERCIÓN — USUARIOS
--- ==========================================
-INSERT INTO `usuarios`
-    (`codigo_empleado`, `nombre`, `email`, `password`, `rol`, `sede`, `palabra_clave`)
-VALUES
-    ('GER-2026-001',   'Eduardo Valdez',       'eduardo.valdezz@elhueco.com.pe',           'admin123',      'gerente',    'Chiclayo', 'ger'),
-    ('OPE-2026-001','Maria Gonzales',          'maria.gonzales@elhueco.com.pe',  'Tottus2026',    'operario',    'Chiclayo', 'ope'),
-    ('OPE-2026-002','Juan Rios',               'juan.rios@elhueco.com.pe',       'Tottus2026',    'operario',   'Chiclayo', 'ope');
-
-
--- ==========================================
--- DATOS SEMILLA — PRODUCTOS
--- ==========================================
-INSERT INTO `productos`
-    (`sku`, `nombre`, `categoria`, `stock_total`, `ubicacion_gondola`, `precio_unitario`, `venta_dia`)
-VALUES
-    ('LAC-001', 'Leche Gloria Entera 1L',    'Lácteos',   240, 'Góndola 1, estante 1',  4.20,  8.0),
-    ('ARR-002', 'Arroz Costeño 5kg',         'Granos',    150, 'Góndola 2, estante 3', 12.90, 15.0),
-    ('ACE-003', 'Aceite Primor 1L',          'Aceites',    80, 'Góndola 3, estante 2',  8.50,  3.0),
-    ('AZU-004', 'Azúcar Rubia 1kg',          'Abarrotes', 320, 'Góndola 2, estante 1',  3.10, 12.0),
-    ('DET-005', 'Detergente Ariel 2kg',      'Limpieza',   95, 'Góndola 5, estante 4', 18.90,  5.0),
-    ('LAC-006', 'Leche Gloria 750ml',        'Lácteos',   180, 'Góndola 1, estante 2',  3.20,  6.0),
-    ('YOG-007', 'Yogurt Gloria Fresa 1L',    'Lácteos',    60, 'Góndola 1, estante 3',  5.80, 10.0),
-    ('PAP-008', 'Papel Higiénico Elite x4',  'Higiene',   200, 'Góndola 6, estante 1',  7.50,  4.0),
-    ('FID-009', 'Fideos Don Vittorio 500g',  'Granos',    130, 'Góndola 2, estante 4',  2.80,  7.0),
-    ('SAL-010', 'Sal Marina La Lobera 500g', 'Abarrotes', 400, 'Góndola 4, estante 2',  1.20,  3.0);
-
-
--- ==========================================
--- DATOS SEMILLA — SEGMENTACION
--- ==========================================
-INSERT INTO `segmentacion_inventario`
-    (`producto_id`, `usuario_id`, `stock_cliente_final`, `stock_revendedor`,
-     `limite_compra_final`, `limite_compra_revendedor`, `motivo`)
-VALUES
-    (1, 1, 180,  60,  3, 15, 'Alta demanda - temporada escolar'),
-    (2, 1, 100,  50,  5, 20, 'Control de revendedores en campaña'),
-    (3, 1,  52,  28,  3, 10, 'Stock bajo - prioridad cliente final'),
-    (4, 1, 250,  70,  2, 10, 'Producto basico - restriccion revendedor');
-
-
--- ==========================================
--- DATOS SEMILLA — ALERTAS DE QUIEBRE
--- ==========================================
-INSERT INTO `alertas_quiebre`
-    (`producto_id`, `producto`, `sku`, `categoria`, `unidades`, `stock_minimo`, `venta_dia`, `estado_transf`)
-VALUES
-    (1, 'Leche Gloria Entera 1L',  'LAC-001', 'Lácteos',   12,  20,  8.0, 'Transferencia en tránsito'),
-    (2, 'Arroz Costeño 5kg',       'ARR-002', 'Granos',    45,  30, 15.0, 'Pedido generado'),
-    (4, 'Azúcar Rubia 1kg',        'AZU-004', 'Abarrotes', 58,  40, 12.0, 'Sin transferencia activa'),
-    (5, 'Detergente Ariel 2kg',    'DET-005', 'Limpieza',   8,  15,  5.0, 'Urgente - sin stock en CD'),
-    (7, 'Yogurt Gloria Fresa 1L',  'YOG-007', 'Lácteos',   60,  25, 10.0, 'Sin transferencia activa');
-
-
--- ==========================================
--- DATOS SEMILLA — CONTEOS MANUALES
--- ==========================================
-INSERT INTO `conteos_manuales`
-    (`producto_id`, `usuario_id`, `stock_sistema`, `stock_contado`, `motivo`, `estado`)
-VALUES
-    (1, 2, 20, 12, 'Merma detectada en góndola - productos vencidos', 'aplicado'),
-    (3, 1, 82, 80, 'Conteo rutina turno mañana', 'aplicado');
-
-
--- ==========================================
--- DATOS SEMILLA — HISTORIAL
--- ==========================================
-INSERT INTO `historial_ajustes`
-    (`producto_id`, `usuario_id`, `empleado_nombre`, `accion`,
-     `campo_modificado`, `valor_anterior`, `valor_nuevo`, `motivo`, `fecha`)
-VALUES
-    (1, 1, 'Maria Gonzales', 'UPDATE', 'stock_cliente_final', '200', '180', 'Ajuste por merma detectada',   NOW() - INTERVAL 2 HOUR),
-    (3, 1, 'Maria Gonzales', 'CREATE', NULL,                  NULL,  NULL,  'Primera segmentación del día', NOW() - INTERVAL 5 HOUR),
-    (2, 2, 'Juan Rios',      'CONTEO', 'stock_total',         '155', '150', 'Conteo fisico turno mañana',   NOW() - INTERVAL 7 HOUR);
-
-
 SET FOREIGN_KEY_CHECKS = 1;
 
--- ==========================================
--- FIN DEL SCRIPT
--- Acceso inicial: codigo=ADMIN-001  clave=admin123
--- ==========================================
+-- ============================================================
+-- FIN DEL SCHEMA
+-- Ejecutar a continuacion: inserts_elhueco.sql
+-- ============================================================

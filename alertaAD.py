@@ -265,7 +265,7 @@ def actualizar_alerta_sincronizada(p_alerta_id, p_unidades, p_venta_dia, p_estad
                     cursor.execute(sql_producto, (p_unidades, producto_id))
 
                     # Import local para evitar circularidad
-                    from procutosAD import _registrar_historial
+                    from productosAD import _registrar_historial
                     _registrar_historial(
                         cursor, producto_id, 'UPDATE',
                         campo='stock_total_alerta',
