@@ -17,7 +17,7 @@ CREATE TABLE `usuarios` (
     `nombre`          VARCHAR(100) NOT NULL,
     `email`           VARCHAR(100) UNIQUE,
     `password`        VARCHAR(20) NOT NULL,
-    `rol`             ENUM('operario','supervisor','gerente') DEFAULT 'operario',
+    `rol`             ENUM('operario','gerente') DEFAULT 'operario',
     `sede`            VARCHAR(100) DEFAULT 'Chiclayo',
     `palabra_clave`   VARCHAR(100) not null,
     `activo`          TINYINT(1)   DEFAULT 1,
@@ -185,9 +185,9 @@ ORDER BY h.fecha DESC;
 INSERT INTO `usuarios`
     (`codigo_empleado`, `nombre`, `email`, `password`, `rol`, `sede`, `palabra_clave`)
 VALUES
-    ('GER-2026-001',   'Eduardo Valdez',       'eduardo.valdezz@tottus.com.pe',           'admin123',      'gerente',    'Chiclayo', 'ger'),
-    ('SUP-2024-001','Maria Gonzales',          'maria.gonzales@tottus.com.pe',  'Tottus2026',    'supervisor',    'Chiclayo', 'sup'),
-    ('OPE-2024-001','Juan Rios',               'juan.rios@tottus.com.pe',       'Tottus2026',    'operario',   'Chiclayo', 'ope');
+    ('GER-2026-001',   'Eduardo Valdez',       'eduardo.valdezz@elhueco.com.pe',           'admin123',      'gerente',    'Chiclayo', 'ger'),
+    ('OPE-2026-001','Maria Gonzales',          'maria.gonzales@elhueco.com.pe',  'Tottus2026',    'operario',    'Chiclayo', 'ope'),
+    ('OPE-2026-002','Juan Rios',               'juan.rios@elhueco.com.pe',       'Tottus2026',    'operario',   'Chiclayo', 'ope');
 
 
 -- ==========================================
