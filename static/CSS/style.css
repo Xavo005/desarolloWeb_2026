@@ -1,29 +1,29 @@
-/* ── Tottus SGI · style.css ────────────────────────────────
+/* ── El Hueco SGI · style.css ────────────────────────────────
    Design System completo: tokens, layout, componentes
 ────────────────────────────────────────────────────────── */
 
-/* ══ TOKENS ═══════════════════════════════════════════════ */
+/* ══ TOKENS (REBRANDING: EL HUECO) ════════════════════════ */
 :root {
-  --primary:       #00A34D;
-  --primary-dark:  #007A38;
-  --primary-light: #E8F5E9;
-  --danger:        #D32F2F;
-  --danger-light:  #FFEBEE;
-  --warning:       #FFB300;
-  --warning-light: #FFF8E1;
-  --bg:            #F4F7F5;
-  --surface:       #FFFFFF;
-  --text:          #424242;
-  --text-muted:    #757575;
-  --border:        #E0E0E0;
-  --shadow:        0 4px 12px rgba(0,0,0,.08);
-  --radius-card:   16px;
-  --radius-btn:    10px;
-  --radius-input:  8px;
-  --sidebar-w:     240px;
-  --header-h:      60px;
-  --tabbar-h:      80px;
-  --font:          'Inter', system-ui, sans-serif;
+  --primary:        #4A3728; /* Marrón Café Profundo (Identidad principal) */
+  --primary-dark:   #2B1E15; /* Marrón Casi Negro para estados hover */
+  --primary-light:  #F5F2F0; /* Crema muy claro / Off-white para fondos activos */
+  --danger:         #D32F2F;
+  --danger-light:   #FFEBEE;
+  --warning:        #B37D4E; /* Marrón Bronce / Terracota suave para alertas */
+  --warning-light:  #FDF8F4; 
+  --bg:             #FAF9F8; /* Fondo claro orgánico */
+  --surface:        #FFFFFF; /* Blanco puro */
+  --text:           #1A1A1A; /* Negro nítido para alta legibilidad */
+  --text-muted:     #706E6B; /* Gris ceniza */
+  --border:         #E2DFDC; /* Bordes sutiles */
+  --shadow:         0 4px 12px rgba(43,30,21,.06);
+  --radius-card:    16px;
+  --radius-btn:     10px;
+  --radius-input:   8px;
+  --sidebar-w:      240px;
+  --header-h:       60px;
+  --tabbar-h:       80px;
+  --font:           'Inter', system-ui, sans-serif;
 }
 
 /* ══ RESET ═════════════════════════════════════════════════ */
@@ -159,13 +159,13 @@ button { font-family: var(--font); }
   width: 16px; height: 16px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
 }
-/* Botón Escanear — círculo verde elevado */
+/* Botón Escanear — círculo marrón elevado */
 .tab-scan .tab-icon-wrap {
   background: var(--primary); color: #fff;
   width: 52px; height: 52px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   margin-top: -16px;
-  box-shadow: 0 4px 12px rgba(0,163,77,.4);
+  box-shadow: 0 4px 12px rgba(74,55,40,.3);
 }
 .tab-scan i { font-size: 22px; }
 
@@ -264,8 +264,8 @@ button { font-family: var(--font); }
 }
 .badge-green { background: var(--primary-light); color: var(--primary); }
 .badge-red   { background: var(--danger-light);  color: var(--danger);  }
-.badge-amber { background: var(--warning-light); color: #B45000;        }
-.badge-gray  { background: var(--bg);            color: var(--text-muted); }
+.badge-amber { background: var(--warning-light); color: #8F4F1D;        }
+.badge-gray  { background: var(--bg);             color: var(--text-muted); }
 
 /* ══ ALERT CARDS ══════════════════════════════════════════ */
 .alert-card {
@@ -275,7 +275,7 @@ button { font-family: var(--font); }
 }
 .alert-card.critico     { border-left-color: var(--danger);  }
 .alert-card.urgente     { border-left-color: var(--warning); }
-.alert-card.advertencia { border-left-color: #2196F3;        }
+.alert-card.advertencia { border-left-color: #3182CE;        }
 .alert-card.ok          { border-left-color: var(--primary); }
 
 .alert-card-header  { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
@@ -294,13 +294,13 @@ button { font-family: var(--font); }
 .alert-card-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; align-items: center; }
 .alert-detail-link  { font-size: 13px; font-weight: 600; color: var(--primary); margin-right: auto; }
 
-/* ── TOAST - Notificaciones nativas Tottus ── */
+/* ── TOAST ── */
 #toast-container {
   position: fixed; bottom: calc(var(--tabbar-h) + 16px); right: 16px;
   z-index: 9999; display: flex; flex-direction: column; gap: 8px;
 }
 .toast {
-  background: #2d3748; color: #fff;
+  background: #251F1B; color: #fff;
   padding: 14px 18px; border-radius: 12px;
   font-size: 14px; font-weight: 600;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
@@ -310,15 +310,15 @@ button { font-family: var(--font); }
   border-left: 4px solid transparent;
 }
 .toast.success {
-  background: #006b3f; color: #fff;
-  border-left-color: #00a34d;
+  background: #2E5A36; color: #fff;
+  border-left-color: #449D55;
 }
 .toast.error {
   background: var(--danger); color: #fff;
   border-left-color: #ff6b6b;
 }
 .toast.warning {
-  background: #b45000; color: #fff;
+  background: #8F4F1D; color: #fff;
   border-left-color: var(--warning);
 }
 @keyframes slideIn {
@@ -384,7 +384,7 @@ button { font-family: var(--font); }
   height: var(--header-h);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  display: none; /* Only show on desktop via media query */
+  display: none;
   align-items: center;
   justify-content: flex-end;
   padding: 0 24px;
@@ -396,72 +396,38 @@ button { font-family: var(--font); }
 .pc-header .hdr-bell:hover { color: var(--primary); }
 
 .notif-dropdown {
-  position: fixed;
-  top: 70px;
-  right: 24px;
-  width: 320px;
-  background: var(--surface);
-  border-radius: var(--radius-card);
-  box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-  border: 1px solid var(--border);
-  z-index: 9999;
-  opacity: 0;
-  transform: translateY(-10px);
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  position: fixed; top: 70px; right: 24px; width: 320px;
+  background: var(--surface); border-radius: var(--radius-card);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.15); border: 1px solid var(--border);
+  z-index: 9999; opacity: 0; transform: translateY(-10px);
+  pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease;
 }
-.notif-dropdown.open {
-  opacity: 1;
-  transform: translateY(0);
-  pointer-events: auto;
-}
-.notif-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
-  font-weight: 700; font-size: 15px;
-  display: flex; justify-content: space-between; align-items: center;
-}
+.notif-dropdown.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.notif-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
 .notif-body { padding: 10px 0; max-height: 300px; overflow-y: auto; }
-.notif-item {
-  display: flex; gap: 12px; padding: 12px 20px;
-  align-items: flex-start;
-}
+.notif-item { display: flex; gap: 12px; padding: 12px 20px; align-items: flex-start; }
 .notif-icon {
   width: 36px; height: 36px; border-radius: 50%;
   background: var(--danger-light); color: var(--danger);
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; font-size: 16px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px;
 }
 .notif-text { font-size: 13px; color: var(--text); line-height: 1.4; }
-.notif-footer {
-  padding: 16px 20px; border-top: 1px solid var(--border);
-}
+.notif-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
 
-@media (min-width: 768px) {
-  .pc-header { display: flex; }
-  .notif-dropdown { top: calc(var(--header-h) + 10px); }
-}
-@media (max-width: 767px) {
-  .notif-dropdown {
-    top: calc(var(--header-h) + 10px);
-    right: 16px; left: 16px; width: auto;
-  }
-}
+@media (min-width: 768px) { .pc-header { display: flex; } .notif-dropdown { top: calc(var(--header-h) + 10px); } }
+@media (max-width: 767px) { .notif-dropdown { top: calc(var(--header-h) + 10px); right: 16px; left: 16px; width: auto; } }
 
 /* ══════════════════════════════════════════════════════════
-   TOKEN OVERRIDES — MODO OSCURO (Añadido)
-   Cambia los colores de las variables cuando data-theme es dark
+    TOKEN OVERRIDES — MODO OSCURO (EL HUECO)
 ══════════════════════════════════════════════════════════ */
 [data-theme="dark"] {
-  --bg:           #121413; /* Fondo oscuro y sutil */
-  --surface:      #1A1D1A; /* Superficie de tarjetas y barra lateral */
-  --text:         #E2E3E1; /* Texto principal legible */
-  --text-muted:   #919390; /* Texto secundario o gris */
-  --border:       #2A2E2B; /* Bordes suaves para modo oscuro */
-  --shadow:       0 4px 20px rgba(0,0,0,.40); /* Sombra más densation para contraste */
-  
-  /* Ajustes opcionales de contraste para componentes específicos */
-  --primary-light: #002D15; /* Fondo verde opaco para ítems activos */
-  --danger-light:  #3D0A0A; /* Fondo rojo opaco para alertas críticas */
-  --warning-light: #3D2B00; /* Fondo ámbar opaco */
+  --bg:           #141211; /* Carbón tirando a marrón muy oscuro */
+  --surface:      #1F1B18; /* Superficies de madera oscura */
+  --text:         #EAE6E2; /* Blanco hueso legible */
+  --text-muted:   #9C9690;
+  --border:       #332C27;
+  --shadow:       0 4px 20px rgba(0,0,0,.50);
+  --primary-light: #332317; /* Contraste oscuro para ítems activos */
+  --danger-light:  #3D0A0A;
+  --warning-light: #3D230A;
 }
