@@ -5,7 +5,7 @@ document.getElementById('last-update').textContent = new Date().toLocaleTimeStri
 });
 
 // Funciones locales para el Modal
-function abrirEditar(id, nombre, unidades, venta, estado) {
+function abrirEditar(id, nombre, unidades, venta, estado, stockMinimo) {
   document.getElementById('edit-alerta-id').value = id;
   document.getElementById('edit-modal-title').textContent = `Editar: ${nombre}`;
   document.getElementById('edit-unidades').value = unidades;
@@ -14,24 +14,30 @@ function abrirEditar(id, nombre, unidades, venta, estado) {
   
   // Logica para modo dinámico
   const modo = document.getElementById('edit-modo').value;
+  const grupoVenta = document.getElementById('grupo-venta');
+  const grupoStockMinimo = document.getElementById('grupo-stock-minimo');
   const inputVenta = document.getElementById('edit-venta');
   const infoVenta = document.getElementById('info-venta-dinamica');
-  
+  const inputStockMinimo = document.getElementById('edit-stock-minimo');
+
   if (modo === 'dinamico') {
+    grupoVenta.style.display = '';
+    grupoStockMinimo.style.display = 'none';
     inputVenta.setAttribute('readonly', true);
     inputVenta.style.backgroundColor = '#f9f9f9';
     inputVenta.style.cursor = 'not-allowed';
     infoVenta.style.display = 'block';
   } else {
+    grupoVenta.style.display = 'none';
+    grupoStockMinimo.style.display = '';
     inputVenta.removeAttribute('readonly');
     inputVenta.style.backgroundColor = '';
     inputVenta.style.cursor = '';
     infoVenta.style.display = 'none';
+    if (inputStockMinimo) inputStockMinimo.value = stockMinimo;
   }
-  
-  // Limpiar errores previos
+
   limpiarErrores();
-  
   document.getElementById('modal-edit-alerta').classList.remove('hidden');
 }
 
@@ -97,11 +103,17 @@ if (inputVenta) inputVenta.addEventListener('input', () => validarCampo(inputVen
 // Validación al enviar
 if (form) {
   form.addEventListener('submit', function(e) {
+    const modo = document.getElementById('edit-modo').value;
     const v1 = validarCampo(inputUnidades);
-    const v2 = validarCampo(inputVenta);
-    
+    let v2 = true;
+    if (modo === 'dinamico') {
+      v2 = validarCampo(inputVenta);
+    } else {
+      const inputSM = document.getElementById('edit-stock-minimo');
+      if (inputSM) v2 = validarCampo(inputSM);
+    }
     if (!v1 || !v2) {
-      e.preventDefault(); // Bloquear envío si no es válido
+      e.preventDefault();
     }
   });
 }

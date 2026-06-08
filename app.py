@@ -21,8 +21,8 @@ from productosAD import (
 
 from alertaAD import (
     clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
-    eliminar_alerta, actualizar_alerta, actualizar_alerta_sincronizada,
-    obtener_alertas_dinamicas, calcular_prediccion_dinamica, contar_alertas
+    eliminar_alerta, actualizar_alerta_sincronizada,
+    obtener_alertas_dinamicas, contar_alertas
 )
 from segmentacionAD import (
     clsSegmentacion, obtener_segmentaciones, obtener_segmentacion_xID,
@@ -188,17 +188,25 @@ def actualizar_alerta_tradicional():
     try:
         alerta_id     = int(request.form['id'])
         unidades      = int(request.form['unidades'])
-        venta_dia     = float(request.form['venta_dia'])
+        venta_dia     = float(request.form.get('venta_dia', 0) or 0)
         estado_transf = request.form['estado_transf'].strip()
         modo          = request.form.get('modo', 'estatico')
+        stock_minimo  = request.form.get('stock_minimo')
+        if stock_minimo is not None:
+            try:
+                stock_minimo = int(stock_minimo)
+            except (ValueError, TypeError):
+                stock_minimo = None
 
-        # Invocamos la función de la capa de datos (tottusAD)
-        exito = actualizar_alerta_sincronizada(
-            p_alerta_id=alerta_id,
-            p_unidades=unidades,
-            p_venta_dia=venta_dia,
-            p_estado_transf=estado_transf
+        obj_alerta = clsAlerta(
+            id=alerta_id,
+            unidades=unidades,
+            venta_dia=venta_dia,
+            estado_transf=estado_transf,
+            stock_minimo=stock_minimo
         )
+
+        exito = actualizar_alerta_sincronizada(obj_alerta)
 
         if not exito:
             return render_template('error_500.html'), 500

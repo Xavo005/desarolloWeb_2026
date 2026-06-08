@@ -2,8 +2,9 @@ from datetime import datetime
 from bd import obtenerconexion
 
 class clsAlerta:
-    def __init__(self, id=None, producto_id=None, producto=None, sku=None, 
-                 categoria=None, unidades=None, venta_dia=None, estado_transf=None):
+    def __init__(self, id=None, producto_id=None, producto=None, sku=None,
+                 categoria=None, unidades=None, venta_dia=None, 
+                 estado_transf=None, stock_minimo=None):
         self.id = id
         self.producto_id = producto_id
         self.producto = producto
@@ -12,6 +13,7 @@ class clsAlerta:
         self.unidades = unidades
         self.venta_dia = venta_dia
         self.estado_transf = estado_transf
+        self.stock_minimo = stock_minimo
 
 def calcular_prediccion_dinamica(conn, producto_id, stock_actual, static_venta_dia):
     try:
@@ -155,6 +157,21 @@ def obtener_alertas_dinamicas():
         print(f"Error en obtener_alertas_dinamicas: {repr(e)}")
         return [], {'critico': 0, 'urgente': 0, 'ok': 0}
 
+def calcular_nivel_estatico(stock_actual, stock_minimo):
+    """
+    Nivel para modo estático basado únicamente en stock_minimo.
+    - critico: stock_actual <= 0
+    - urgente: 0 < stock_actual <= stock_minimo
+    - ok:      stock_actual > stock_minimo
+    No existe 'advertencia' en modo estático.
+    """
+    if stock_actual <= 0:
+        return 'critico'
+    elif stock_actual <= stock_minimo:
+        return 'urgente'
+    else:
+        return 'ok'
+
 def obtener_alertas_activas():
     try:
         conn = obtenerconexion()
@@ -162,17 +179,23 @@ def obtener_alertas_activas():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql  = " SELECT a.id, a.sku, a.producto, "
-                    sql += "        a.categoria, a.nivel, p.stock_total AS unidades, "
-                    sql += "        a.stock_minimo, a.venta_dia, "
+                    sql  = " SELECT a.id, a.producto_id, a.sku, a.producto, "
+                    sql += "        a.categoria, a.stock_minimo, a.venta_dia, "
                     sql += "        a.horas_restantes, a.estado_transf, "
+                    sql += "        p.stock_total AS unidades, "
                     sql += "        p.stock_total, p.ubicacion_gondola "
                     sql += "   FROM alertas_quiebre a "
                     sql += "   JOIN productos p ON a.producto_id = p.id "
                     sql += "  WHERE a.activo = 1 "
-                    sql += "  ORDER BY a.horas_restantes ASC "
+                    sql += "  ORDER BY p.stock_total ASC "
                     cursor.execute(sql)
-                    alertas = cursor.fetchall()
+                    filas = cursor.fetchall()
+                    for fila in filas:
+                        item = dict(fila)
+                        item['nivel'] = calcular_nivel_estatico(
+                            item['unidades'], item['stock_minimo']
+                        )
+                        alertas.append(item)
         return alertas
     except Exception as e:
         print(repr(e))
@@ -186,11 +209,16 @@ def obtener_totales_alertas():
             with conn:
                 with conn.cursor() as cursor:
                     cursor.execute("""
-                        SELECT nivel, COUNT(*) AS n FROM alertas_quiebre 
-                        WHERE activo=1 GROUP BY nivel
+                        SELECT p.stock_total AS unidades, a.stock_minimo
+                        FROM alertas_quiebre a
+                        JOIN productos p ON a.producto_id = p.id
+                        WHERE a.activo = 1
                     """)
                     for fila in cursor.fetchall():
-                        totales[fila['nivel']] = fila['n']
+                        nivel = calcular_nivel_estatico(
+                            fila['unidades'], fila['stock_minimo']
+                        )
+                        totales[nivel] = totales.get(nivel, 0) + 1
         return totales
     except Exception as e:
         print(repr(e))
@@ -210,27 +238,7 @@ def eliminar_alerta(p_alerta_id):
         print(repr(e))
         return False
 
-def actualizar_alerta(p_Alerta):
-    try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    sql = """
-                        UPDATE alertas_quiebre 
-                        SET unidades=%s, venta_dia=%s, estado_transf=%s, updated_at=NOW()
-                        WHERE id=%s
-                    """
-                    cursor.execute(sql, (p_Alerta.unidades, p_Alerta.venta_dia, 
-                                        p_Alerta.estado_transf, p_Alerta.id))
-                conn.commit()
-            return True
-        return False
-    except Exception as e:
-        print(repr(e))
-        return False
-
-def actualizar_alerta_sincronizada(p_alerta_id, p_unidades, p_venta_dia, p_estado_transf, p_motivo='Ajuste desde edicion de alerta'):
+def actualizar_alerta_sincronizada(p_alerta, p_motivo='Ajuste desde edicion de alerta'):
     try:
         conn = obtenerconexion()
         if conn:
@@ -242,7 +250,7 @@ def actualizar_alerta_sincronizada(p_alerta_id, p_unidades, p_venta_dia, p_estad
                         JOIN productos p ON a.producto_id = p.id
                         WHERE a.id = %s AND a.activo = 1
                     """
-                    cursor.execute(sql_info, (p_alerta_id,))
+                    cursor.execute(sql_info, (p_alerta.id,))
                     row = cursor.fetchone()
                     if not row:
                         return False
@@ -255,14 +263,21 @@ def actualizar_alerta_sincronizada(p_alerta_id, p_unidades, p_venta_dia, p_estad
                            SET unidades = %s, venta_dia = %s, estado_transf = %s, updated_at = NOW()
                          WHERE id = %s
                     """
-                    cursor.execute(sql_alerta, (p_unidades, p_venta_dia, p_estado_transf, p_alerta_id))
+                    cursor.execute(sql_alerta, (p_alerta.unidades, p_alerta.venta_dia, p_alerta.estado_transf, p_alerta.id))
+
+                    if p_alerta.stock_minimo is not None:
+                        cursor.execute("""
+                            UPDATE alertas_quiebre
+                               SET stock_minimo = %s
+                             WHERE id = %s
+                        """, (p_alerta.stock_minimo, p_alerta.id))
 
                     sql_producto = """
                         UPDATE productos
                            SET stock_total = %s
                          WHERE id = %s
                     """
-                    cursor.execute(sql_producto, (p_unidades, producto_id))
+                    cursor.execute(sql_producto, (p_alerta.unidades, producto_id))
 
                     # Import local para evitar circularidad
                     from productosAD import _registrar_historial
@@ -270,7 +285,7 @@ def actualizar_alerta_sincronizada(p_alerta_id, p_unidades, p_venta_dia, p_estad
                         cursor, producto_id, 'UPDATE',
                         campo='stock_total_alerta',
                         anterior=stock_anterior,
-                        nuevo=p_unidades,
+                        nuevo=p_alerta.unidades,
                         motivo=p_motivo
                     )
                 conn.commit()
