@@ -12,7 +12,7 @@
     <div style="font-size:20px;font-weight:700">{{ usuario.nombre if usuario else session.get('nombre') or 'Usuario' }}</div>
     <div class="text-muted text-sm mt-2">{{ usuario.rol | capitalize if usuario else (session.get('rol') or 'operario') | capitalize }}</div>
     <div style="display:flex;gap:8px;justify-content:center;margin-top:12px">
-      <span class="badge badge-green">{{ usuario.codigo_empleado if usuario else session.get('codigo_empleado') or '---' }}</span>
+      <span class="badge badge-green">{{ session.get('codigo') or session.get('codigo_empleado') or (usuario.codigo_empleado if usuario else '---') }}</span>
       <span class="badge badge-amber">Turno Mañana</span>
     </div>
   </div>
@@ -21,9 +21,8 @@
     <div style="font-size:15px;font-weight:600;margin-bottom:12px">
       <i class="fa-solid fa-location-dot" style="color:var(--primary)"></i> Sede Asignada
     </div>
-    <div style="font-size:14px">{{ usuario.sede if usuario else session.get('sede') or 'Sin asignar' }}</div>
-    <div class="text-muted text-sm mt-2">
-      <i class="fa-solid fa-store"></i> Zona: Open plaza · Chiclayo
+    <div style="font-size:14px; font-weight: 500;">
+      {{ session.get('sede') or (usuario.sede if usuario else 'Sin asignar') }}
     </div>
   </div>
 
@@ -37,7 +36,7 @@
     </div>
     <div class="pref-row">
       <span><i class="fa-solid fa-moon pref-icon"></i> Modo Oscuro</span>
-      <label class="toggle"><input type="checkbox"><span class="toggle-sl"></span></label>
+      <label class="toggle"><input type="checkbox" id="dark-mode-toggle"><span class="toggle-sl"></span></label>
     </div>
     <div class="pref-row">
       <span><i class="fa-solid fa-language pref-icon"></i> Idioma: Español</span>
@@ -87,4 +86,26 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+  // Script rápido para hacer funcionar el interruptor de Modo Oscuro de forma local
+  document.addEventListener('DOMContentLoaded', () => {
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    
+    // Verificar si ya estaba activo antes
+    if (localStorage.getItem('theme') === 'dark' || document.documentElement.getAttribute('data-theme') === 'dark') {
+      darkModeToggle.checked = true;
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+
+    darkModeToggle.addEventListener('change', () => {
+      if (darkModeToggle.checked) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+      }
+    });
+  });
+</script>
 {% endblock %}

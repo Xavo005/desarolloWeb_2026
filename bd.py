@@ -4,9 +4,8 @@ def obtenerconexion():
    try:
        connection = pymysql.connect(
            host='localhost', user='root', password='',
-           database='tottus_sgi',
+           database='elHueco',
            cursorclass=pymysql.cursors.DictCursor)
        return connection
    except:
        raise
-

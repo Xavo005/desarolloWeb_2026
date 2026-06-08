@@ -3,39 +3,7 @@
 {% block page_title %}Alertas{% endblock %}
 
 {% block extra_css %}
-<style>
-  .btn-toggle {
-    border: none;
-    border-radius: 18px;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    background: transparent;
-    color: #757575;
-    transition: all 0.2s;
-    text-decoration: none;
-    display: inline-block;
-  }
-  .btn-toggle.active {
-    background: var(--primary);
-    color: #fff;
-  }
-  .btn-toggle:hover:not(.active) {
-    background: #EAEAEA;
-  }
-  
-  .form-group input.error {
-    border-color: var(--danger) !important;
-    background-color: #fff8f8;
-  }
-  .error-msg {
-    color: var(--danger);
-    font-size: 11px;
-    margin-top: 4px;
-    display: block;
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/alertas.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -101,24 +69,41 @@
 
         <!-- Métricas -->
         <div class="alert-metrics">
-          <div class="alert-metric">
-            <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">{{ a.unidades }}</div>
-            <div class="metric-lbl">unidades</div>
-          </div>
-          <div class="alert-metric">
-            <div class="metric-val">{{ a.venta_dia }}</div>
-            <div class="metric-lbl">unid./día</div>
-          </div>
-          <div class="alert-metric">
-            <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
-              {{ a.horas_restantes | round(0) | int }}h
+          {% if modo == 'dinamico' %}
+            <div class="alert-metric">
+              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">{{ a.unidades }}</div>
+              <div class="metric-lbl">unidades</div>
             </div>
-            <div class="metric-lbl">restantes</div>
-          </div>
+            <div class="alert-metric">
+              <div class="metric-val">{{ a.venta_dia }}</div>
+              <div class="metric-lbl">unid./día</div>
+            </div>
+            <div class="alert-metric">
+              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
+                {{ a.horas_restantes | round(0) | int }}h
+              </div>
+              <div class="metric-lbl">restantes</div>
+            </div>
+          {% else %}
+            <div class="alert-metric">
+              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
+                {{ a.unidades }}
+              </div>
+              <div class="metric-lbl">unidades actuales</div>
+            </div>
+            <div class="alert-metric">
+              <div class="metric-val">{{ a.stock_minimo }}</div>
+              <div class="metric-lbl">stock de seguridad</div>
+            </div>
+          {% endif %}
         </div>
 
         <!-- Progress Bar -->
-        {% set pct = [((a.unidades / (a.venta_dia * 5)) * 100) | int, 100] | min if a.venta_dia > 0 else 100 %}
+        {% if modo == 'dinamico' %}
+          {% set pct = [((a.unidades / (a.venta_dia * 5)) * 100) | int, 100] | min if a.venta_dia > 0 else 100 %}
+        {% else %}
+          {% set pct = [((a.unidades / a.stock_minimo) * 100) | int, 100] | min if a.stock_minimo > 0 else 100 %}
+        {% endif %}
         <div class="progress-bar">
           <div class="progress-fill {% if a.nivel=='critico' %}fill-red{% elif a.nivel=='urgente' %}fill-amber{% else %}fill-green{% endif %}"
                style="width:{{ pct }}%"></div>
@@ -133,7 +118,7 @@
           <a href="{{ url_for('segmentacion') }}" class="alert-detail-link">
             Ver Detalle ›
           </a>
-          <button class="btn-edit" onclick="abrirEditar({{ a.id }}, '{{ a.producto }}', {{ a.unidades }}, {{ a.venta_dia }}, '{{ a.estado_transf }}')">
+          <button class="btn-edit" onclick="abrirEditar({{ a.id }}, '{{ a.producto }}', {{ a.unidades }}, {{ a.venta_dia }}, '{{ a.estado_transf }}', {{ a.stock_minimo }})">
             <i class="fa-solid fa-pen"></i> Editar
           </button>
           <a href="#" class="btn-delete btn-eliminar-alerta" style="text-decoration:none"
@@ -173,13 +158,19 @@
         <small id="error-unidades" class="error-msg" style="display:none;"></small>
       </div>
       
-      <div class="form-group">
+      <div class="form-group" id="grupo-venta" {% if modo != 'dinamico' %}style="display:none"{% endif %}>
         <label for="edit-venta">Velocidad de venta (unid./día)</label>
         <input type="number" id="edit-venta" name="venta_dia" min="0" step="0.1">
         <small id="info-venta-dinamica" style="display:none; color:var(--primary); font-size:10px; font-weight:600;">
           <i class="fa-solid fa-circle-info"></i> Calculado automáticamente por el historial
         </small>
         <small id="error-venta" class="error-msg" style="display:none;"></small>
+      </div>
+
+      <div class="form-group" id="grupo-stock-minimo" {% if modo == 'dinamico' %}style="display:none"{% endif %}>
+        <label for="edit-stock-minimo">Stock mínimo de seguridad</label>
+        <input type="number" id="edit-stock-minimo" name="stock_minimo" min="0" step="1">
+        <small id="error-stock-minimo" class="error-msg" style="display:none;"></small>
       </div>
       
       <div class="form-group">
@@ -200,122 +191,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-  // Control visual del tiempo de actualización
-  document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-PE', {
-    hour: '2-digit', 
-    minute: '2-digit'
-  });
-
-  // Funciones locales para el Modal
-  function abrirEditar(id, nombre, unidades, venta, estado) {
-    document.getElementById('edit-alerta-id').value = id;
-    document.getElementById('edit-modal-title').textContent = `Editar: ${nombre}`;
-    document.getElementById('edit-unidades').value = unidades;
-    document.getElementById('edit-venta').value = venta;
-    document.getElementById('edit-estado').value = estado;
-    
-    // Logica para modo dinámico
-    const modo = document.getElementById('edit-modo').value;
-    const inputVenta = document.getElementById('edit-venta');
-    const infoVenta = document.getElementById('info-venta-dinamica');
-    
-    if (modo === 'dinamico') {
-      inputVenta.setAttribute('readonly', true);
-      inputVenta.style.backgroundColor = '#f9f9f9';
-      inputVenta.style.cursor = 'not-allowed';
-      infoVenta.style.display = 'block';
-    } else {
-      inputVenta.removeAttribute('readonly');
-      inputVenta.style.backgroundColor = '';
-      inputVenta.style.cursor = '';
-      infoVenta.style.display = 'none';
-    }
-    
-    // Limpiar errores previos
-    limpiarErrores();
-    
-    document.getElementById('modal-edit-alerta').classList.remove('hidden');
-  }
-
-  function cerrarEditar() {
-    document.getElementById('modal-edit-alerta').classList.add('hidden');
-  }
-
-  // Cerrar al hacer click fuera
-  document.getElementById('modal-edit-alerta').addEventListener('click', function(e) {
-    if (e.target === this) cerrarEditar();
-  });
-
-  // --- VALIDACIÓN EN TIEMPO REAL (Estilo del Profesor) ---
-  
-  const form = document.getElementById('form-edit-alerta');
-  const inputUnidades = document.getElementById('edit-unidades');
-  const inputVenta = document.getElementById('edit-venta');
-
-  function showError(input, message) {
-    input.classList.add('error');
-    const errorEl = document.getElementById('error-' + input.name.replace('_', '-'));
-    if (errorEl) {
-      errorEl.textContent = message;
-      errorEl.style.display = 'block';
-    }
-  }
-
-  function showSuccess(input) {
-    input.classList.remove('error');
-    const errorEl = document.getElementById('error-' + input.name.replace('_', '-'));
-    if (errorEl) {
-      errorEl.style.display = 'none';
-    }
-  }
-
-  function limpiarErrores() {
-    inputUnidades.classList.remove('error');
-    inputVenta.classList.remove('error');
-    document.getElementById('error-unidades').style.display = 'none';
-    document.getElementById('error-venta').style.display = 'none';
-  }
-
-  function validarCampo(input) {
-    const val = parseFloat(input.value);
-    if (isNaN(val) || input.value.trim() === '') {
-      showError(input, 'Este campo es obligatorio');
-      return false;
-    }
-    if (val < 0) {
-      showError(input, 'No se permiten valores negativos');
-      return false;
-    }
-    showSuccess(input);
-    return true;
-  }
-
-  // Listeners de entrada
-  inputUnidades.addEventListener('input', () => validarCampo(inputUnidades));
-  inputVenta.addEventListener('input', () => validarCampo(inputVenta));
-
-  // Validación al enviar
-  form.addEventListener('submit', function(e) {
-    const v1 = validarCampo(inputUnidades);
-    const v2 = validarCampo(inputVenta);
-    
-    if (!v1 || !v2) {
-      e.preventDefault(); // Bloquear envío si no es válido
-    }
-  });
-
-  // Handler para botones de eliminar alerta con modal Tottus
-  document.querySelectorAll('.btn-eliminar-alerta').forEach(function(btn) {
-    btn.addEventListener('click', function(e) {
-      e.preventDefault();
-      var url    = btn.getAttribute('data-url');
-      var nombre = btn.getAttribute('data-nombre');
-      showModal('Descartar la alerta de ' + nombre, function() {
-        window.location.href = url;
-      });
-    });
-  });
-
-</script>
+<script src="{{ url_for('static', filename='JS/alertas.js') }}"></script>
 {% endblock %}

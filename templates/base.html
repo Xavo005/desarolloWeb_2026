@@ -3,12 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{% block title %}Tottus SGI{% endblock %} — Sistema Gerencial</title>
+  <title>{% block title %}El Hueco SGI{% endblock %} — Sistema Gerencial</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    if (localStorage.getItem('theme') === 'dark') {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    }
+  </script>
   {% block extra_css %}{% endblock %}
+
 </head>
 <body>
 
@@ -46,7 +52,7 @@
 
 <!-- ══════════ MASTER HEADER (móvil) ══════════ -->
 <header class="master-header">
-  <span class="hdr-brand">TOTTUS</span>
+  <span class="hdr-brand">EL HUECO</span>
   <span class="hdr-title">{% block page_title %}{% endblock %}</span>
   <button class="hdr-bell" onclick="toggleNotifDropdown(event)" style="background: none; border: none; cursor: pointer;">
     <i class="fa-solid fa-bell"></i>
@@ -59,7 +65,7 @@
 <!-- ══════════ SIDEBAR (PC) ══════════ -->
 <aside class="sidebar">
   <div class="sidebar-brand">
-    <span class="sb-logo">TOTTUS</span>
+    <span class="sb-logo">EL HUECO</span>
     <span class="sb-sub">Sistema Gerencial</span>
   </div>
   <hr class="sb-divider">
@@ -142,7 +148,7 @@
 <!-- ══════════ TOAST CONTAINER ══════════ -->
 <div id="toast-container" aria-live="polite"></div>
 
-<!-- MODAL CONFIRMACION ELIMINAR - Estilo Tottus -->
+<!-- MODAL CONFIRMACION ELIMINAR - Estilo El Hueco -->
 <div id="modal-overlay" class="modal-overlay hidden" role="dialog" aria-modal="true">
   <div class="modal-card">
     <div class="modal-icon" style="background:#fff3cd;color:#856404;width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 16px">
@@ -158,7 +164,7 @@
 </div>
 
 <style>
-/* ── Modal de confirmacion estilo Tottus ── */
+/* ── Modal de confirmacion estilo El Hueco ── */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 9999;
   background: rgba(0,0,0,0.55);
@@ -191,13 +197,13 @@
 .btn-modal-si {
   flex: 1;
   padding: 13px 20px;
-  background: #006b3f;
+  background: #4A3728; /* Marrón El Hueco */
   color: #fff;
   border: none; border-radius: 10px;
   font-size: 15px; font-weight: 600;
   cursor: pointer; transition: background 0.2s;
 }
-.btn-modal-si:hover { background: #005230; }
+.btn-modal-si:hover { background: #2B1E15; }
 </style>
 
 <!-- ══════════ NOTIFICATION DROPDOWN ══════════ -->

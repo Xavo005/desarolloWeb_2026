@@ -3,18 +3,7 @@
 {% block page_title %}Productos{% endblock %}
 
 {% block extra_css %}
-<style>
-  .seg-table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th { background: var(--primary); color: #fff; padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; }
-  td { padding: 12px 16px; border-bottom: 1px solid var(--bg); vertical-align: middle; }
-  tr:hover td { background: var(--bg); }
-  .seg-form-card { background: var(--surface); border-radius: var(--radius-card); box-shadow: var(--shadow); padding: 24px; margin-bottom: 24px; }
-  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .stock-preview { background: var(--bg); border-radius: 10px; padding: 12px 16px; margin-top: 8px; font-size: 13px; }
-  .stock-preview span { font-weight: 700; color: var(--primary); }
-  .stock-preview.over span { color: var(--danger); }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/segmentacion.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -151,50 +140,12 @@
 
 {% block extra_js %}
 <script>
-// ==============================================================================
-// UC6 - SEGMENTAR STOCK (Local Helper client-side validation)
-// ==============================================================================
-
 // Mapa para obtener el stock rápido por ID inyectado por Jinja
 const mapaStockTotal = {
   {% for p in productos %}
     "{{ p.id }}": {{ p.stock_total }},
   {% endfor %}
 };
-
-/**
- * UC6: Muestra la vista previa del stock disponible del producto seleccionado.
- */
-function cargarProducto(idProducto) {
-  const stockTotal = mapaStockTotal[idProducto];
-  if (!stockTotal) { 
-    document.getElementById('stock-preview').classList.add('hidden'); 
-    return; 
-  }
-  
-  document.getElementById('stock-disponible').textContent = stockTotal;
-  document.getElementById('stock-preview').classList.remove('hidden');
-  actualizarPreview();
-}
-
-/**
- * UC6: Valida en tiempo real que el stock asignado no supere el disponible.
- */
-function actualizarPreview() {
-  const idProducto = document.getElementById('producto-select').value;
-  if (!idProducto) return;
-  
-  const stockTotal = mapaStockTotal[idProducto] || 0;
-  const stockAsignado = (+document.getElementById('stock-final').value || 0)
-                      + (+document.getElementById('stock-revend').value || 0);
-                      
-  const alertaExceso = document.getElementById('stock-warn');
-  
-  if (stockAsignado > stockTotal) { 
-    alertaExceso.classList.remove('hidden'); 
-  } else { 
-    alertaExceso.classList.add('hidden'); 
-  }
-}
 </script>
+<script src="{{ url_for('static', filename='JS/segmentacion.js') }}"></script>
 {% endblock %}

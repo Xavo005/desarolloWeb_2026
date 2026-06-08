@@ -2,40 +2,47 @@ import csv
 import io
 import json
 from datetime import datetime
-
-
-from flask import Flask, render_template, request, Response, jsonify, stream_with_context  # type: ignore[import]
-from markupsafe import escape
-
-from flask import Flask, render_template, request, Response, jsonify, session, redirect, url_for
-
 from bd import obtenerconexion
 
-from tottusAD import (
-    cambiar_clave,
-    obtener_stats_dashboard, obtener_alertas_recientes,
+from flask import (
+    Flask, render_template, request, Response, jsonify,
+    session, redirect, url_for, stream_with_context
+)
+
+from productosAD import (
     leer_historial, registrar_historial,
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
     insertar_producto, actualizar_producto, eliminar_producto,
     buscar_sku,
-    clsSegmentacion, obtener_segmentaciones, obtener_segmentacion_xID,
-    insertar_segmentacion, actualizar_segmentacion,
-    eliminar_segmentacion, toggle_segmentacion,
-    clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
-    eliminar_alerta, actualizar_alerta, actualizar_alerta_sincronizada,
-    clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
-    insertar_trabajador  as ad_insertar_trabajador,
-    actualizar_trabajador as actualizar_trabajador,
-    eliminar_trabajador  as ad_eliminar_trabajador,
     clsConteo, leer_conteos, insertar_conteo,
     insertar_conteo_manual,
-    contar_alertas,
+    verificar_dependencias_producto, verificar_dependencias_trabajador
+)
+
+from alertaAD import (
+    clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
+    eliminar_alerta, actualizar_alerta_sincronizada,
+    obtener_alertas_dinamicas, contar_alertas
+)
+from segmentacionAD import (
+    clsSegmentacion, obtener_segmentaciones, obtener_segmentacion_xID,
+    insertar_segmentacion, actualizar_segmentacion, eliminar_segmentacion,
+    toggle_segmentacion, validar_stock_disponible
+)
+from dashboardAD import (
+    obtener_stats_dashboard, obtener_alertas_recientes,
+    obtener_datos_graficos_dashboard, leer_productos_basico
+)
+
+from usuarioAD import (
+clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
+    insertar_trabajador, actualizar_trabajador, eliminar_trabajador,
+    cambiar_contrasena, restablecer_contrasena
 )
 
 app = Flask(__name__)
 app.secret_key = 'tottus_sgi_secret_2026'
-
 
 # ==============================================================================
 # FUNCIONES AUXILIARES CENTRALIZADAS
@@ -59,70 +66,13 @@ def mostrar_error(mensaje, status=400):
 # INTEGRIDAD REFERENCIAL - VALIDACIONES DE DEPENDENCIA
 # ==============================================================================
 def _verificar_dependencias_producto(prod_id):
-    """
-    Verifica si un producto tiene dependencias activas en otras tablas.
-    Retorna None si puede eliminarse, o un string con el motivo de bloqueo.
-    """
-    try:
-        conn = obtenerconexion()
-        if not conn:
-            return "No se pudo verificar dependencias: sin conexion a la base de datos."
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM segmentacion_inventario WHERE producto_id=%s AND activo=1",
-                    (prod_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El producto tiene segmentaciones activas asociadas. Elimine primero las segmentaciones."
-
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM alertas_quiebre WHERE producto_id=%s AND activo=1",
-                    (prod_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El producto tiene alertas de quiebre activas. Desactive primero las alertas."
-
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM conteos_manuales WHERE producto_id=%s",
-                    (prod_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El producto tiene conteos manuales registrados. No puede eliminarse por integridad de datos."
-
-        return None
-    except Exception as e:
-        return f"Error al verificar dependencias: {repr(e)}"
+    """Capa de controlador: delega validacion a tottusAD."""
+    return verificar_dependencias_producto(prod_id)
 
 
 def _verificar_dependencias_trabajador(usuario_id):
-    """
-    Verifica si un trabajador tiene dependencias activas en otras tablas.
-    Retorna None si puede eliminarse, o un string con el motivo de bloqueo.
-    """
-    try:
-        conn = obtenerconexion()
-        if not conn:
-            return "No se pudo verificar dependencias: sin conexion a la base de datos."
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM conteos_manuales WHERE usuario_id=%s",
-                    (usuario_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El trabajador tiene conteos manuales registrados. No puede eliminarse por integridad de datos."
-
-                cursor.execute(
-                    "SELECT COUNT(*) AS n FROM historial_ajustes WHERE usuario_id=%s",
-                    (usuario_id,)
-                )
-                if cursor.fetchone()['n'] > 0:
-                    return "El trabajador tiene registros en el historial de ajustes. No puede eliminarse por integridad de datos."
-
-        return None
-    except Exception as e:
-        return f"Error al verificar dependencias: {repr(e)}"
+    """Capa de controlador: delega validacion a tottusAD."""
+    return verificar_dependencias_trabajador(usuario_id)
 
 
 # ==============================================================================
@@ -190,47 +140,12 @@ def dashboard():
 @app.route('/api/dashboard/graficos')
 def api_dashboard_graficos():
     try:
-        conn = obtenerconexion()
-        if not conn:
-            return jsonify({'success': False, 'message': 'No se pudo conectar a la base de datos'})
-        
-        with conn:
-            with conn.cursor() as cursor:
-                # 1. Stock por categoría
-                cursor.execute("""
-                    SELECT categoria, SUM(stock_total) AS total_stock 
-                    FROM productos 
-                    WHERE activo=1 AND categoria IS NOT NULL AND categoria != ''
-                    GROUP BY categoria 
-                    ORDER BY total_stock DESC
-                """)
-                stock_por_categoria = cursor.fetchall()
-
-                # 2. Tendencia ajustes (últimos 7 días)
-                cursor.execute("""
-                    SELECT DATE_FORMAT(fecha, '%Y-%m-%d') AS dia, 
-                    COUNT(*) AS total 
-                    FROM historial_ajustes 
-                    WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 6 DAY) 
-                    GROUP BY DATE(fecha) 
-                    ORDER BY DATE(fecha) ASC
-                """)
-                tendencia_ajustes = cursor.fetchall()
-
-                # 3. Alertas por nivel
-                cursor.execute("""
-                    SELECT nivel, COUNT(*) AS total 
-                    FROM alertas_quiebre 
-                    WHERE activo=1 
-                    GROUP BY nivel
-                """)
-                alertas_por_nivel = cursor.fetchall()
-
+        datos = obtener_datos_graficos_dashboard()
         return jsonify({
             'success': True,
-            'stock_por_categoria': stock_por_categoria,
-            'tendencia_ajustes': tendencia_ajustes,
-            'alertas_por_nivel': alertas_por_nivel
+            'stock_por_categoria': datos['stock_por_categoria'],
+            'tendencia_ajustes':   datos['tendencia_ajustes'],
+            'alertas_por_nivel':   datos['alertas_por_nivel']
         })
     except Exception as e:
         print("Error en /api/dashboard/graficos:", repr(e))
@@ -244,59 +159,7 @@ def api_dashboard_graficos():
 
 def _obtener_datos_alertas(modo='estatico'):
     if modo == 'dinamico':
-        conn = obtenerconexion()
-        # Traer alertas activas con stock_total y venta_dia estatico
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT a.id, a.producto_id, a.producto, a.sku, a.categoria,
-                           p.stock_total AS unidades, p.venta_dia, a.estado_transf
-                    FROM alertas_quiebre a
-                    JOIN productos p ON a.producto_id = p.id
-                    WHERE a.activo = 1
-                """)
-                alertas_raw = cursor.fetchall()
-
-                lista_alertas = []
-                total_critico = 0
-                total_urgente = 0
-                total_ok = 0
-
-                for a in alertas_raw:
-                    pred = calcular_prediccion_dinamica(
-                        conn,
-                        a['producto_id'],
-                        a['unidades'],
-                        a['venta_dia']
-                    )
-
-                    item = {
-                        'id': a['id'],
-                        'producto_id': a['producto_id'],
-                        'producto': a['producto'],
-                        'sku': a['sku'],
-                        'categoria': a['categoria'],
-                        'unidades': a['unidades'],
-                        'venta_dia': pred['venta_dia_real'],
-                        'horas_restantes': pred['horas_restantes_real'],
-                        'nivel': pred['nivel_real'],
-                        'estado_transf': a['estado_transf']
-                    }
-
-                    if item['nivel'] == 'critico': total_critico += 1
-                    elif item['nivel'] == 'urgente': total_urgente += 1
-                    else: total_ok += 1
-
-                    lista_alertas.append(item)
-
-                # Ordenar por horas restantes
-                lista_alertas.sort(key=lambda x: x['horas_restantes'])
-
-                totales = {
-                    'critico': total_critico,
-                    'urgente': total_urgente,
-                    'ok': total_ok
-                }
+        lista_alertas, totales = obtener_alertas_dinamicas()
     else:
         lista_alertas = obtener_alertas_activas()
         totales = obtener_totales_alertas()
@@ -326,17 +189,25 @@ def actualizar_alerta_tradicional():
     try:
         alerta_id     = int(request.form['id'])
         unidades      = int(request.form['unidades'])
-        venta_dia     = float(request.form['venta_dia'])
+        venta_dia     = float(request.form.get('venta_dia', 0) or 0)
         estado_transf = request.form['estado_transf'].strip()
         modo          = request.form.get('modo', 'estatico')
+        stock_minimo  = request.form.get('stock_minimo')
+        if stock_minimo is not None:
+            try:
+                stock_minimo = int(stock_minimo)
+            except (ValueError, TypeError):
+                stock_minimo = None
 
-        # Invocamos la función de la capa de datos (tottusAD)
-        exito = actualizar_alerta_sincronizada(
-            p_alerta_id=alerta_id,
-            p_unidades=unidades,
-            p_venta_dia=venta_dia,
-            p_estado_transf=estado_transf
+        obj_alerta = clsAlerta(
+            id=alerta_id,
+            unidades=unidades,
+            venta_dia=venta_dia,
+            estado_transf=estado_transf,
+            stock_minimo=stock_minimo
         )
+
+        exito = actualizar_alerta_sincronizada(obj_alerta)
 
         if not exito:
             return render_template('error_500.html'), 500
@@ -597,7 +468,7 @@ def api_guardar_producto():
 
 
 # ==============================================================================
-# API - ESCANER (Sesion 15 - POST estandar del profesor)
+# API - ESCANER 
 # ==============================================================================
 @app.route("/api_buscar_sku", methods=["POST"])
 def api_buscar_sku():
@@ -610,7 +481,7 @@ def api_buscar_sku():
 
 
 # ==============================================================================
-# API - CONTEOS MANUALES (Regla 3 capas: SQL en tottusAD - Diego)
+# API - CONTEOS MANUALES
 # ==============================================================================
 @app.route('/api/conteos', methods=['POST'])
 def api_crear_conteo():
@@ -643,9 +514,11 @@ def api_crear_conteo():
 
 
 
+
 # ════════════════════════════════════════════════════════════
 # API — HISTORIAL CSV  (DIEGO CALDERON)
 # ════════════════════════════════════════════════════════════
+
 # ==============================================================================
 # API — HISTORIAL CSV (MODIFICADO PARA POST)
 # ==============================================================================
@@ -695,18 +568,16 @@ def api_exportar_historial():
 
 
 
+
+
+
 # ==============================================================================
 # CRUD - SEGMENTACIONES - Gianella Torres
 # ==============================================================================
 def _obtener_datos_segmentacion():
+    """Helper: reune datos para la vista de segmentacion. Sin SQL directo."""
     segmentaciones = obtener_segmentaciones()
-    conn = obtenerconexion()
-    productos_lista = []
-    if conn:
-        with conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT id, nombre, sku, stock_total FROM productos WHERE activo=1 ORDER BY nombre")
-                productos_lista = cursor.fetchall()
+    productos_lista = leer_productos_basico()
     totales = obtener_totales_alertas()
     alertas_count = totales.get('critico', 0) + totales.get('urgente', 0)
     return {
@@ -748,20 +619,9 @@ def guardar_segmentacion_ruta():
         motivo           = request.form.get('motivo', '')
 
         # Validacion de stock disponible
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT stock_total FROM productos WHERE id=%s AND activo=1", (producto_id,))
-                    prod = cursor.fetchone()
-                    if not prod:
-                        return mostrar_error("Producto no encontrado o inactivo.")
-
-                    if (stock_final + stock_revendedor > prod['stock_total']):
-                        return mostrar_error(
-                            f"Stock insuficiente. Disponible: {prod['stock_total']}, "
-                            f"Solicitado: {stock_final + stock_revendedor}"
-                        )
+        error = validar_stock_disponible(producto_id, stock_final + stock_revendedor)
+        if error:
+            return mostrar_error(error)
 
         # Insertar segmentacion
         objSegmentacion = clsSegmentacion(
@@ -791,24 +651,16 @@ def actualizar_segmentacion_ruta():
         stock_revendedor = int(request.form.get('stock_revendedor', 0))
         motivo           = request.form.get('motivo', '')
 
-        anterior = None
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT s.*, p.stock_total FROM segmentacion_inventario s
-                        JOIN productos p ON s.producto_id = p.id WHERE s.id=%s
-                    """, (seg_id,))
-                    anterior = cursor.fetchone()
-                    if not anterior:
-                        return mostrar_error("Segmentacion no encontrada.")
+        anterior = obtener_segmentacion_xID(seg_id)
+        if not anterior:
+            return mostrar_error("Segmentacion no encontrada.")
 
-                    if (stock_final + stock_revendedor > anterior['stock_total']):
-                        return mostrar_error(
-                            f"Stock insuficiente. Disponible: {anterior['stock_total']}, "
-                            f"Solicitado: {stock_final + stock_revendedor}"
-                        )
+        producto_id = anterior['producto_id']
+
+        # Validacion de stock disponible
+        error = validar_stock_disponible(producto_id, stock_final + stock_revendedor)
+        if error:
+            return mostrar_error(error)
 
         objSegmentacion = clsSegmentacion(
             id=seg_id,
@@ -820,15 +672,14 @@ def actualizar_segmentacion_ruta():
         )
 
         if actualizar_segmentacion(objSegmentacion):
-            if anterior:
-                registrar_historial(
-                    p_producto_id=anterior['producto_id'],
-                    p_accion='UPDATE',
-                    p_campo='segmentacion_stock',
-                    p_anterior=f"F:{anterior['stock_cliente_final']} R:{anterior['stock_revendedor']}",
-                    p_nuevo=f"F:{stock_final} R:{stock_revendedor}",
-                    p_motivo=motivo
-                )
+            registrar_historial(
+                p_producto_id=producto_id,
+                p_accion='UPDATE',
+                p_campo='segmentacion_stock',
+                p_anterior=f"F:{anterior['stock_cliente_final']} R:{anterior['stock_revendedor']}",
+                p_nuevo=f"F:{stock_final} R:{stock_revendedor}",
+                p_motivo=motivo
+            )
             return mostrar_exito('Segmentacion actualizada correctamente.', '/segmentacion')
         else:
             return mostrar_error("No se pudo actualizar la segmentacion.")
@@ -844,15 +695,9 @@ def eliminar_segmentacion_ruta(seg_id):
     adicionales que bloqueen su eliminacion - se permite directo.
     """
     try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT producto_id FROM segmentacion_inventario WHERE id=%s", (seg_id,))
-                    row = cursor.fetchone()
-                    if row:
-                        registrar_historial(row['producto_id'], 'DELETE', p_motivo='Segmentacion eliminada')
-                conn.commit()
+        row = obtener_segmentacion_xID(seg_id)
+        if row:
+            registrar_historial(row['producto_id'], 'DELETE', p_motivo='Segmentacion eliminada')
 
         if eliminar_segmentacion(seg_id):
             return mostrar_exito('Segmentacion eliminada correctamente.', '/segmentacion')
@@ -865,18 +710,12 @@ def eliminar_segmentacion_ruta(seg_id):
 @app.route('/toggle_segmentacion/<int:seg_id>')
 def toggle_segmentacion_ruta(seg_id):
     try:
-        conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT producto_id, activo FROM segmentacion_inventario WHERE id=%s", (seg_id,))
-                    row = cursor.fetchone()
-                    if row:
-                        registrar_historial(row['producto_id'], 'TOGGLE',
-                                            p_campo='activo',
-                                            p_anterior=row['activo'],
-                                            p_nuevo=1 - row['activo'])
-                conn.commit()
+        row = obtener_segmentacion_xID(seg_id)
+        if row:
+            registrar_historial(row['producto_id'], 'TOGGLE',
+                                p_campo='activo',
+                                p_anterior=row['activo'],
+                                p_nuevo=1 - row['activo'])
 
         if toggle_segmentacion(seg_id):
             datos = _obtener_datos_segmentacion()
@@ -935,25 +774,28 @@ def api_listar_usuarios():
 @app.route("/api_guardar_usuario", methods=['POST'])
 def api_guardar_usuario():
     try:
+        d = request.json
+        pwd = d.get('password_hash')
+        if not pwd:
+            pwd = '123'
         obj = clsTrabajador(
             None,
-            request.json['nombre'],
-            request.json['codigo_empleado'],
-            request.json['email'],
-            request.json['sede'],
-            request.json['rol'],
-            request.json['palabra_clave'],
-            None
+            d.get('nombre', ''),
+            d.get('codigo_empleado', ''),
+            d.get('email', ''),
+            d.get('sede', ''),
+            d.get('rol', 'operario'),
+            pwd, 
+            1
         )
-
+        
         if insertar_trabajador(obj):
             return jsonify({"code": 1, "message": "Trabajador registrado correctamente"})
-        return jsonify({"code": 0, "message": "No se pudo registrar (codigo duplicado o error)"})
-
+        else:
+            return jsonify({"code": 0, "message": "No se pudo registrar (codigo duplicado o error)"})
     except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
-
-
+        return jsonify({"code": -1, "message": str(e)})
+    
 # ==============================================================================
 # APIS - CONTEOS MANUALES
 # ==============================================================================
@@ -988,186 +830,72 @@ def api_guardar_conteo():
         return jsonify({"code": -1, "message": repr(e)})
 
 
-# ==============================================================================
-# ALERTAS - Prediccion dinamica - Gianella Torres
-# ==============================================================================
-def calcular_prediccion_dinamica(conn, producto_id, stock_actual, static_venta_dia):
-    try:
-        with conn.cursor() as cursor:
-            sql = """
-                SELECT valor_anterior, valor_nuevo, fecha
-                FROM historial_ajustes
-                WHERE producto_id = %s
-                  AND (campo_modificado = 'stock_total' OR accion = 'CONTEO')
-                  AND fecha >= NOW() - INTERVAL 14 DAY
-                ORDER BY fecha ASC
-            """
-            cursor.execute(sql, (producto_id,))
-            rows = cursor.fetchall()
-
-            reducciones = 0
-            oldest_fecha = None
-
-            for row in rows:
-                try:
-                    val_ant = int(row['valor_anterior']) if row['valor_anterior'] is not None else 0
-                    val_nue = int(row['valor_nuevo'])    if row['valor_nuevo']    is not None else 0
-                    if val_ant > val_nue:
-                        reducciones += (val_ant - val_nue)
-                        if oldest_fecha is None:
-                            oldest_fecha = row['fecha']
-                except (ValueError, TypeError):
-                    continue
-
-            if oldest_fecha and reducciones > 0:
-                delta = datetime.now() - oldest_fecha
-                days = delta.total_seconds() / 86400.0
-                days = max(days, 1.0)  # Al menos 1 dia para evitar valores atipicos
-                venta_dia_real = reducciones / days
-            else:
-                venta_dia_real = float(static_venta_dia or 0)
-
-            if venta_dia_real > 0:
-                horas_restantes = (stock_actual / venta_dia_real) * 24.0
-            else:
-                horas_restantes = 9999.0
-
-            if venta_dia_real <= 0:
-                nivel = 'ok'
-            elif horas_restantes <= 24:
-                nivel = 'critico'
-            elif horas_restantes <= 72:
-                nivel = 'urgente'
-            elif horas_restantes <= 120:
-                nivel = 'advertencia'
-            else:
-                nivel = 'ok'
-
-            return {
-                'venta_dia_real': round(venta_dia_real, 2),
-                'horas_restantes_real': round(horas_restantes, 1),
-                'nivel_real': nivel,
-                'usando_historial': oldest_fecha is not None and reducciones > 0
-            }
-    except Exception:
-        # Fallback si ocurre algun error
-        venta_dia_real = float(static_venta_dia or 0)
-        horas = (stock_actual / venta_dia_real * 24) if venta_dia_real > 0 else 9999.0
-        nivel = 'ok'
-        if venta_dia_real > 0:
-            if horas <= 24:   nivel = 'critico'
-            elif horas <= 72: nivel = 'urgente'
-            elif horas <= 120: nivel = 'advertencia'
-        return {
-            'venta_dia_real': round(venta_dia_real, 2),
-            'horas_restantes_real': round(horas, 1),
-            'nivel_real': nivel,
-            'usando_historial': False
-        }
-
-
 @app.route('/listar_alertas')
 def api_get_alertas():
+    """
+    Muestra la lista de alertas activas.
+    Delega a obtener_alertas_activas() de tottusAD (Regla 3 capas).
+    Sin SELECT * ni acceso directo a BD desde el controlador.
+    """
     try:
-        conn = obtenerconexion()
-        resultado = None
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("SELECT * FROM v_alertas_activas")
-                    resultado = cursor.fetchall()
+        resultado = obtener_alertas_activas()
         return render_template('lista_alertas.html', datos=resultado)
     except Exception as e:
         return mostrar_error("Error al cargar la lista de alertas.", 500)
 
 
+
 # ==============================================================================
 # HISTORIAL
 # ==============================================================================
-@app.route('/listar_historial')
-def listar_historial():
+@app.route('/api/historial/listar', methods=['POST'])
+def api_listar_historial():
     try:
+        # Llamamos a tu función de la capa de datos
         resultado = leer_historial(p_limite=200)
+        
+        # Formateo de fechas para que el JSON no explote con objetos datetime
         if resultado:
             for row in resultado:
                 if isinstance(row.get('fecha'), datetime):
                     row['fecha'] = row['fecha'].strftime('%d/%m/%Y %H:%M')
-        return render_template('lista_historial.html', datos=resultado)
+                    
+        return jsonify({"code": 1, "data": resultado})
     except Exception as e:
-        print("Error en /listar_historial:", repr(e))
-        return mostrar_error("Error al cargar el historial.", 500)
+        print("Error en /api/historial/listar:", repr(e))
+        return jsonify({"code": 0, "message": "Error al cargar historial"})
 
-# ==============================================================================
-# EXPORTACION CSV DEL HISTORIAL
-# ==============================================================================
-@app.route('/historial/exportar', methods=['GET'])
-def exportar_historial_csv():
-    try:
-        accion = request.args.get('accion', '').strip().upper()
-        registros = leer_historial(
-            p_accion=accion if accion else None,
-            p_limite=1000
-        ) or []
 
-        output = io.StringIO()
-        writer = csv.writer(output, quoting=csv.QUOTE_ALL)
 
-        writer.writerow([
-            'Fecha', 'Producto', 'SKU', 'Empleado', 'Rol Empleado',
-            'Accion', 'Campo Modificado', 'Valor Anterior', 'Valor Nuevo', 'Motivo'
-        ])
-
-        for r in registros:
-            fecha = r['fecha'].strftime('%d/%m/%Y %H:%M') if isinstance(r.get('fecha'), datetime) else str(r.get('fecha', ''))
-            writer.writerow([
-                fecha,
-                r.get('producto_nombre', ''),
-                r.get('sku', ''),
-                r.get('empleado_nombre', ''),
-                r.get('empleado_rol', ''),
-                r.get('accion', ''),
-                r.get('campo_modificado', ''),
-                r.get('valor_anterior', ''),
-                r.get('valor_nuevo', ''),
-                r.get('motivo', ''),
-            ])
-
-        nombre_archivo = f"historial_tottus_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-
-        return Response(
-            output.getvalue(),
-            mimetype='text/csv; charset=utf-8',
-            headers={
-                'Content-Disposition': f'attachment; filename="{nombre_archivo}"',
-                'Content-Type': 'text/csv; charset=utf-8',
-            }
-        )
-    except Exception as e:
-        print("Error en /historial/exportar:", repr(e))
-        return mostrar_error("Error al exportar el historial.", 500)
 
 
 # ==============================================================================
 # CRUD - TRABAJADORES - SECLEN
 # ==============================================================================
+
+# ==============================================================================
+# RUTA - LISTAR
+# ==============================================================================  
 @app.route('/trabajadores')
 def listar_trabajadores():
     try:
         lista = leer_trabajadores() or []
         return render_template('lista_trabajadores.html',
                                active_page='trabajadores',
-                               alertas_count=3, # Dejamos el 3 fijo de tu campana
+                               alertas_count=contar_alertas(), # Dejamos el 3 fijo de tu campana
                                trabajadores=lista)
     except Exception as e:
         print("Error en /trabajadores:", repr(e))
         return mostrar_error("Error al cargar el listado de personal.", 500)
 
+# ==============================================================================
+# RUTA - INSERTAR
+# ==============================================================================  
 @app.route('/trabajadores/nuevo')
 def vista_agregar_trabajador():
     return render_template('trabajador.html',
                            active_page='trabajadores',
                            alertas_count=contar_alertas())
-
 
 @app.route('/insertar_trabajador', methods=['POST'])
 def insertar_trabajador_ruta():
@@ -1175,24 +903,22 @@ def insertar_trabajador_ruta():
         nombre          = request.form.get('nombre', '').strip()
         codigo_empleado = request.form.get('codigo_empleado', '').strip().upper()
         email           = request.form.get('email', '').strip()
-        sede            = request.form.get('sede', '').strip()
-        rol             = request.form.get('rol', 'operario').strip()
+        sede            = request.form.get('sede', '').strip().lower()
+        rol             = request.form.get('rol', 'operario').strip().lower()
         palabra_clave   = request.form.get('palabra_clave', '').strip()
 
         if not nombre or not codigo_empleado or not sede:
             return mostrar_error("Nombre, codigo de empleado y sede son obligatorios.")
 
-        obj = clsTrabajador(
-            p_nombre=nombre,
-            p_codigo_empleado=codigo_empleado,
-            p_email=email,
-            p_sede=sede,
-            p_rol=rol,
-            p_palabra_clave=palabra_clave,
-            p_password_hash='Tottus2026'
-        )
+        obj = clsTrabajador()
+        obj.nombre = nombre
+        obj.codigo_empleado = codigo_empleado
+        obj.email = email
+        obj.sede = sede
+        obj.rol = rol
+        obj.palabra_clave = palabra_clave
+        obj.password = 'Tottus2026'
 
-        # CORREGIDO: Llama a la función importada de tottusAD
         if insertar_trabajador(obj): 
             return mostrar_exito(
                 'Trabajador registrado correctamente. Clave inicial: Tottus2026',
@@ -1202,20 +928,25 @@ def insertar_trabajador_ruta():
     except Exception as e:
         print("Error en /insertar_trabajador:", repr(e))
         return mostrar_error("Error interno al registrar el trabajador.", 500)
-
+    
+# ==============================================================================
+# RUTA - ACTUALIZAR
+# ==============================================================================      
 @app.route('/trabajadores/editar/<int:id>')
 def vista_editar_trabajador(id):
     try:
-        trabajador = leer_trabajador_por_id(id)
-        if not trabajador:
-            return mostrar_error("Trabajador no encontrado.", 404)
+        trabajador_obj = leer_trabajador_por_id(id)
+        if not trabajador_obj:
+            return "Trabajador no encontrado.", 404
+        
         return render_template('trabajador_edit.html',
                                active_page='trabajadores',
                                alertas_count=contar_alertas(),
-                               trabajador=trabajador)
+                               trabajador=trabajador_obj)   
+                               
     except Exception as e:
-        print("Error en /trabajadores/editar:", repr(e))
-        return mostrar_error("Error al cargar el trabajador para edicion.", 500)
+        print(f"Error en vista_editar_trabajador: {repr(e)}")
+        return "Error interno al cargar el formulario de edicion.", 500
 
 @app.route('/actualizar_trabajador', methods=['POST'])
 def actualizar_trabajador_ruta():
@@ -1224,36 +955,38 @@ def actualizar_trabajador_ruta():
         nombre          = request.form.get('nombre', '').strip()
         codigo_empleado = request.form.get('codigo_empleado', '').strip().upper()
         email           = request.form.get('email', '').strip()
-        sede            = request.form.get('sede', '').strip()
-        rol             = request.form.get('rol', 'operario').strip()
+        sede            = request.form.get('sede', '').strip().lower()
+        rol             = request.form.get('rol', 'operario').strip().lower()
         palabra_clave   = request.form.get('palabra_clave', '').strip()
         nueva_password  = request.form.get('nueva_password', '').strip()
 
-        if not nombre or not codigo_empleado or not sede:
-            return mostrar_error("Nombre, codigo de empleado y sede son obligatorios.")
+        if not nueva_password:
+            trab_actual = leer_trabajador_por_id(trab_id)
+            if trab_actual and isinstance(trab_actual, dict):
+                nueva_password = trab_actual.get('password')
 
-        obj = clsTrabajador(
-            p_id=trab_id,
-            p_nombre=nombre,
-            p_codigo_empleado=codigo_empleado,
-            p_email=email,
-            p_sede=sede,
-            p_rol=rol,
-            p_palabra_clave=palabra_clave,
-            p_password_hash=nueva_password if nueva_password else None
-        )
+        obj = clsTrabajador()
+        obj.id = trab_id
+        obj.nombre = nombre
+        obj.codigo_empleado = codigo_empleado
+        obj.email = email
+        obj.sede = sede
+        obj.rol = rol
+        obj.palabra_clave = palabra_clave
+        obj.password = nueva_password
 
-        # CORREGIDO: Se quitó el 'ad_' para llamar a la función real de tottusAD
         if actualizar_trabajador(obj): 
-            return mostrar_exito(
-                'Datos del trabajador actualizados correctamente.',
-                '/trabajadores', 'Ver personal')
+            return redirect(url_for('listar_trabajadores'))
             
-        return mostrar_error("No se pudo actualizar. Verifique que el codigo no este duplicado.")
+        return "Error: Codigo de empleado ya registrado o datos invalidos.", 400
+        
     except Exception as e:
-        print("Error en /actualizar_trabajador:", repr(e))
-        return mostrar_error("Error interno al actualizar el trabajador.", 500)
+        print(f"Error en actualizar_trabajador_ruta: {repr(e)}")
+        return "Error interno al actualizar el registro.", 500
     
+# ==============================================================================
+# RUTA -ELIMINAR
+# ==============================================================================            
 @app.route('/eliminar_trabajador/<int:id>', methods=['POST', 'GET'])
 def eliminar_trabajador_ruta(id):
     try:
@@ -1269,7 +1002,45 @@ def eliminar_trabajador_ruta(id):
         return mostrar_error("Error interno al desactivar el trabajador.", 500)
 
 # ==============================================================================
-# RUTA - RESTABLECER CONTRASENA (Desde el exterior)
+# RUTA - CAMBIO DE CONTRASENA (Desde cambiar_clave.html)
+# ==============================================================================
+@app.route('/cambiar_clave', methods=['GET', 'POST'])
+def cambiar_clave_ruta():
+    if request.method == 'GET':
+        return render_template('cambiar_clave.html')
+
+    try:
+        clave_actual    = request.form.get('clave_actual', '').strip()
+        clave_nueva     = request.form.get('clave_nueva', '').strip()
+        clave_confirmar = request.form.get('clave_confirmar', '').strip()
+
+        if not clave_actual or not clave_nueva:
+            return mostrar_error("Ambas claves son requeridas.", 400)
+            
+        if clave_nueva != clave_confirmar:
+            return mostrar_error("La nueva contrasena y su confirmacion no coinciden.", 400)
+            
+        if len(clave_nueva) < 8 or not any(c.isdigit() for c in clave_nueva):
+            return mostrar_error("La nueva clave debe tener al menos 8 caracteres y contener un numero.", 400)
+            
+        if clave_actual == clave_nueva:
+            return mostrar_error("La nueva clave debe ser diferente a la actual.", 400)
+
+        trabajador_id = session.get('id')
+        if not trabajador_id:
+            return mostrar_error("Sesion no valida o expirada. Por favor, vuelve a loguearte.", 401)
+
+        if cambiar_contrasena(trabajador_id, clave_actual, clave_nueva):
+            return redirect(url_for('listar_trabajadores'))
+            
+        return mostrar_error("La contrasena actual es incorrecta.", 400)
+
+    except Exception as e:
+        print(f"Error en cambiar_clave_ruta: {repr(e)}")
+        return mostrar_error("Error interno del servidor.", 500)
+
+# ==============================================================================
+# RUTA - RESTABLECER CONTRASEÑA
 # ==============================================================================
 @app.route('/restablecer', methods=['GET', 'POST'])
 def restablecer():
@@ -1283,7 +1054,7 @@ def restablecer():
                 return render_template('restablecer.html',
                                        error='El codigo de empleado y la nueva contrasena son obligatorios.')
 
-            if restablecer_clave(codigo, clave_sec, clave_nva):
+            if restablecer_contrasena(codigo, clave_sec, clave_nva):
                 return mostrar_exito(
                     'Contrasena restablecida correctamente.',
                     '/', 'Ir al Login')
@@ -1297,47 +1068,6 @@ def restablecer():
 
     return render_template('restablecer.html', error=None)
 
-
-# ==============================================================================
-# RUTA - CAMBIO DE CONTRASENA (Desde cambiar_clave.html)
-# ==============================================================================
-@app.route('/cambiar_clave', methods=['GET', 'POST'])
-def cambiar_clave_ruta():
-    if request.method == 'GET':
-        return render_template('cambiar_clave.html')
-
-    try:
-        # 1. Captura de los campos del formulario tradicional
-        clave_actual    = request.form.get('clave_actual', '')
-        clave_nueva     = request.form.get('clave_nueva', '')
-        clave_confirmar = request.form.get('clave_confirmar', '')
-
-        # 2. Validaciones (CORREGIDO el guion bajo)
-        if not clave_actual or not clave_nueva:
-            return mostrar_error("Ambas claves son requeridas.")
-        if clave_nueva != clave_confirmar:  # <--- CORREGIDO: ahora sí tiene el guion bajo
-            return mostrar_error("La nueva contraseña y su confirmación no coinciden.")
-        if len(clave_nueva) < 8:
-            return mostrar_error("La nueva clave debe tener al menos 8 caracteres.")
-        if not any(c.isdigit() for c in clave_nueva):
-            return mostrar_error("La nueva clave debe contener al menos un numero.")
-        if clave_actual == clave_nueva:
-            return mostrar_error("La nueva clave debe ser diferente a la actual.")
-
-        # 3. Obtener ID del usuario en sesión
-        trabajador_id = session.get('id', 1)
-
-        # 4. Modificar en la Base de Datos
-        if cambiar_clave(trabajador_id, clave_actual, clave_nueva):
-            return mostrar_exito(
-                'Contrasena actualizada correctamente.',
-                '/perfil', 'Volver al perfil')
-            
-        return mostrar_error("La contrasena actual es incorrecta.")
-    except Exception as e:
-        print("Error en /cambiar_clave:", repr(e))
-        return mostrar_error("Error interno al cambiar la contrasena.", 500)
-    
 # ==============================================================================
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

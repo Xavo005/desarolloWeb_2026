@@ -48,7 +48,7 @@
                 <i class="fa-solid fa-pen-to-square"></i>
               </a>
               
-              {% if session.get('rol') in ['gerente', 'tecnico'] %}
+              {% if session.get('rol') in ['gerente'] %}
                 <a href="#"
                    data-url="{{ url_for('eliminar_trabajador_ruta', id=t.id) }}"
                    data-nombre="{{ t.nombre }}"
@@ -70,7 +70,6 @@
 
 {% block extra_js %}
 <script>
-// Conectar botones de eliminar al modal de confirmacion Tottus
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('.btn-eliminar-trabajador').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
