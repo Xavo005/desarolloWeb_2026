@@ -1,8 +1,13 @@
 import csv
 import io
 import json
+import os
 from datetime import datetime
+from dotenv import load_dotenv
 from bd import obtenerconexion
+
+# Cargar variables de entorno del archivo .env (incluye GEMINI_API_KEY)
+load_dotenv()
 
 from flask import (
     Flask, render_template, request, Response, jsonify,
@@ -19,6 +24,10 @@ from productosAD import (
     insertar_conteo_manual,
     verificar_dependencias_producto, verificar_dependencias_trabajador
 )
+from historialAD import leer_historial
+
+# Si tu archivo se llama conteoAD.py, entonces debe ser:
+from Conteo_NuevoAD import registrar_conteo, listar_conteos_reales
 
 from alertaAD import (
     clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
@@ -40,6 +49,7 @@ clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
     insertar_trabajador, actualizar_trabajador, eliminar_trabajador,
     cambiar_contrasena, restablecer_contrasena
 )
+from chatbotAD import enrutar_intencion
 
 app = Flask(__name__)
 app.secret_key = 'tottus_sgi_secret_2026'
@@ -481,45 +491,6 @@ def api_buscar_sku():
 
 
 # ==============================================================================
-# API - CONTEOS MANUALES
-# ==============================================================================
-@app.route('/api/conteos', methods=['POST'])
-def api_crear_conteo():
-    try:
-        data = request.get_json() or {}
-        prod_id = data.get('producto_id')
-        # Intentamos convertir a entero para mayor seguridad
-        try:
-            contado = int(data.get('stock_contado'))
-        except (TypeError, ValueError):
-            return jsonify({'code': 0, 'message': 'stock_contado debe ser un número entero'}), 400
-            
-        motivo = data.get('motivo', '')
-
-        if prod_id is None:
-            return jsonify({'code': 0, 'message': 'producto_id es requerido'}), 400
-
-        ok, resultado = insertar_conteo_manual(prod_id, contado, motivo)
-        
-        if ok:
-            return jsonify({'code': 1, 'message': 'Conteo registrado'}), 201
-        
-        return jsonify({'code': 0, 'message': 'Producto no encontrado o error al registrar'}), 404
-
-    except Exception as e:
-        # Registramos el error en consola, pero no lo enviamos al cliente
-        print(f"Error crítico en /api/conteos: {repr(e)}")
-        return jsonify({'code': -1, 'message': 'Error interno del servidor'}), 500
-
-
-
-
-
-# ════════════════════════════════════════════════════════════
-# API — HISTORIAL CSV  (DIEGO CALDERON)
-# ════════════════════════════════════════════════════════════
-
-# ==============================================================================
 # API — HISTORIAL CSV (MODIFICADO PARA POST)
 # ==============================================================================
 @app.route('/api/historial/exportar', methods=['POST']) # <--- Cambiado a POST
@@ -796,38 +767,48 @@ def api_guardar_usuario():
     except Exception as e:
         return jsonify({"code": -1, "message": str(e)})
     
-# ==============================================================================
-# APIS - CONTEOS MANUALES
-# ==============================================================================
-@app.route("/api_listar_conteos")
+
+
+#==============================================================================
+# APIS - CONTEOS MANUALES - Diego Calderon
+#=============================================================================
+
+    
+# --- LISTAR ---
+@app.route("/api/conteos/listar", methods=['POST'])
 def api_listar_conteos():
     try:
-        resultado = leer_conteos()
-        return jsonify(resultado)
+        resultado = listar_conteos_reales()
+        
+        if not resultado:
+            return jsonify({"code": 0, "message": "No se encontraron registros o hubo un error"})
+            
+        return jsonify({"code": 1, "data": resultado})
     except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
+        print(f"ERROR EN API LISTAR: {e}")
+        return jsonify({"code": -1, "message": str(e)})
 
-
-@app.route("/api_guardar_conteo", methods=['POST'])
+# --- GUARDAR ---
+@app.route("/api/conteos/guardar", methods=['POST'])
 def api_guardar_conteo():
     try:
         data = request.json
-        obj = clsConteo(
-            None,
-            data['producto_id'],
-            data['usuario_id'],
-            data['stock_sistema'],
-            data['stock_contado'],
-            data['diferencia'],
-            data['motivo'],
-            data.get('estado', 'aplicado')
-        )
-
-        if insertar_conteo(obj):
-            return jsonify({"code": 1, "message": "Conteo registrado con exito"})
-        return jsonify({"code": 0, "message": "Error al registrar el conteo"})
+        # 1. Extraemos los 6 datos del JSON
+        producto_id = data['producto_id']
+        usuario_id = data['usuario_id']
+        stock_sistema = data['stock_sistema']
+        stock_contado = data['stock_contado']
+        motivo = data['motivo']
+        estado = data['estado'] # ¡Esto es lo que faltaba extraer!
+        
+        # 2. Llamamos pasando los 6 argumentos
+        if registrar_conteo(producto_id, usuario_id, stock_sistema, stock_contado, motivo, estado):
+            return jsonify({"code": 1, "message": "Conteo registrado con éxito"})
+        else:
+            return jsonify({"code": 0, "message": "Error al registrar en la BD"})
     except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
+        # Si aquí sale el error, es que algo en el JSON de arriba falló (ej: falta un campo)
+        return jsonify({"code": -1, "message": str(e)})
 
 
 @app.route('/listar_alertas')
@@ -1067,6 +1048,49 @@ def restablecer():
                                    error='Error interno. Intente de nuevo.')
 
     return render_template('restablecer.html', error=None)
+
+# ==============================================================================
+# CHATBOT HÍBRIDO — Intent Router + Fallback Gemini AI
+# ==============================================================================
+@app.route('/api/chatbot', methods=['POST'])
+def api_chatbot():
+    """
+    Ruta POST del Chatbot Híbrido.
+
+    Recibe un JSON { "mensaje": "texto del usuario" } y delega
+    completamente la lógica al módulo chatbotAD.enrutar_intencion().
+
+    Responde con JSON:
+      { "respuesta": str, "intencion": str, "exito": bool }
+
+    Errores manejados:
+      - JSON malformado o campo faltante → 400
+      - Error interno inesperado → 500
+    """
+    try:
+        data = request.get_json(silent=True)
+        if not data or 'mensaje' not in data:
+            return jsonify({
+                'respuesta': '❌ Formato inválido. Envía { "mensaje": "tu texto" }.',
+                'intencion': 'error_formato',
+                'exito': False
+            }), 400
+
+        mensaje = str(data['mensaje']).strip()
+
+        # Delegar al Intent Router (chatbotAD.py) — respeta la arquitectura 3 capas
+        resultado = enrutar_intencion(mensaje)
+
+        return jsonify(resultado)
+
+    except Exception as e:
+        print(f"ERROR en /api/chatbot: {repr(e)}")
+        return jsonify({
+            'respuesta': '⚠️ Error interno del servidor. Por favor intenta nuevamente.',
+            'intencion': 'error_interno',
+            'exito': False
+        }), 500
+
 
 # ==============================================================================
 if __name__ == '__main__':
