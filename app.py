@@ -773,8 +773,6 @@ def api_guardar_usuario():
 def api_listar_conteos():
     try:
         resultado = listar_conteos_reales()
-        # Imprime esto en la consola para ver qué está pasando antes de enviar
-        print(f"DEBUG: Datos obtenidos de BD: {resultado}")
         
         if not resultado:
             return jsonify({"code": 0, "message": "No se encontraron registros o hubo un error"})
