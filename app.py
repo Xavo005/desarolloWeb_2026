@@ -1,8 +1,13 @@
 import csv
 import io
 import json
+import os
 from datetime import datetime
+from dotenv import load_dotenv
 from bd import obtenerconexion
+
+# Cargar variables de entorno del archivo .env (incluye GEMINI_API_KEY)
+load_dotenv()
 
 from flask import (
     Flask, render_template, request, Response, jsonify,
@@ -44,6 +49,7 @@ clsTrabajador, leer_trabajadores, leer_trabajador_por_id,
     insertar_trabajador, actualizar_trabajador, eliminar_trabajador,
     cambiar_contrasena, restablecer_contrasena
 )
+from chatbotAD import enrutar_intencion
 
 app = Flask(__name__)
 app.secret_key = 'tottus_sgi_secret_2026'
@@ -1042,6 +1048,49 @@ def restablecer():
                                    error='Error interno. Intente de nuevo.')
 
     return render_template('restablecer.html', error=None)
+
+# ==============================================================================
+# CHATBOT HÍBRIDO — Intent Router + Fallback Gemini AI
+# ==============================================================================
+@app.route('/api/chatbot', methods=['POST'])
+def api_chatbot():
+    """
+    Ruta POST del Chatbot Híbrido.
+
+    Recibe un JSON { "mensaje": "texto del usuario" } y delega
+    completamente la lógica al módulo chatbotAD.enrutar_intencion().
+
+    Responde con JSON:
+      { "respuesta": str, "intencion": str, "exito": bool }
+
+    Errores manejados:
+      - JSON malformado o campo faltante → 400
+      - Error interno inesperado → 500
+    """
+    try:
+        data = request.get_json(silent=True)
+        if not data or 'mensaje' not in data:
+            return jsonify({
+                'respuesta': '❌ Formato inválido. Envía { "mensaje": "tu texto" }.',
+                'intencion': 'error_formato',
+                'exito': False
+            }), 400
+
+        mensaje = str(data['mensaje']).strip()
+
+        # Delegar al Intent Router (chatbotAD.py) — respeta la arquitectura 3 capas
+        resultado = enrutar_intencion(mensaje)
+
+        return jsonify(resultado)
+
+    except Exception as e:
+        print(f"ERROR en /api/chatbot: {repr(e)}")
+        return jsonify({
+            'respuesta': '⚠️ Error interno del servidor. Por favor intenta nuevamente.',
+            'intencion': 'error_interno',
+            'exito': False
+        }), 500
+
 
 # ==============================================================================
 if __name__ == '__main__':
