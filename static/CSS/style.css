@@ -1,22 +1,22 @@
-/* ── El Hueco SGI · style.css ────────────────────────────────
+/* ── DeyFarma SGI · style.css ────────────────────────────────
    Design System completo: tokens, layout, componentes
 ────────────────────────────────────────────────────────── */
 
-/* ══ TOKENS (REBRANDING: EL HUECO) ════════════════════════ */
+/* ══ TOKENS (REBRANDING: DEYFARMA) ════════════════════════ */
 :root {
-  --primary:        #4A3728; /* Marrón Café Profundo (Identidad principal) */
-  --primary-dark:   #2B1E15; /* Marrón Casi Negro para estados hover */
-  --primary-light:  #F5F2F0; /* Crema muy claro / Off-white para fondos activos */
-  --danger:         #D32F2F;
-  --danger-light:   #FFEBEE;
-  --warning:        #B37D4E; /* Marrón Bronce / Terracota suave para alertas */
-  --warning-light:  #FDF8F4; 
-  --bg:             #FAF9F8; /* Fondo claro orgánico */
-  --surface:        #FFFFFF; /* Blanco puro */
-  --text:           #1A1A1A; /* Negro nítido para alta legibilidad */
-  --text-muted:     #706E6B; /* Gris ceniza */
-  --border:         #E2DFDC; /* Bordes sutiles */
-  --shadow:         0 4px 12px rgba(43,30,21,.06);
+  --primary:        #1A365D; /* Azul Marino Profundo (Identidad Farmacéutica) */
+  --primary-dark:   #0A2540; /* Azul Oscuro para hovers */
+  --primary-light:  #EBF8FF; /* Celeste Clínico muy claro para elementos activos */
+  --danger:         #E53E3E;
+  --danger-light:   #FFF5F5;
+  --warning:        #3182CE; /* Azul Brillante / Informativo para alertas intermedias */
+  --warning-light:  #EBF8FF;
+  --bg:             #F7FAFC; /* Fondo gris azulado sutil, limpio y sanitario */
+  --surface:        #FFFFFF; /* Blanco Puro */
+  --text:           #2D3748; /* Carbón oscuro legible */
+  --text-muted:     #718096; /* Gris neutro */
+  --border:         #E2E8F0; /* Bordes suaves */
+  --shadow:         0 4px 12px rgba(26,54,93,.04);
   --radius-card:    16px;
   --radius-btn:     10px;
   --radius-input:   8px;
@@ -159,13 +159,13 @@ button { font-family: var(--font); }
   width: 16px; height: 16px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
 }
-/* Botón Escanear — círculo marrón elevado */
+/* Botón Escanear — círculo azul elevado */
 .tab-scan .tab-icon-wrap {
   background: var(--primary); color: #fff;
   width: 52px; height: 52px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   margin-top: -16px;
-  box-shadow: 0 4px 12px rgba(74,55,40,.3);
+  box-shadow: 0 4px 12px rgba(26,54,93,.3);
 }
 .tab-scan i { font-size: 22px; }
 
@@ -264,7 +264,7 @@ button { font-family: var(--font); }
 }
 .badge-green { background: var(--primary-light); color: var(--primary); }
 .badge-red   { background: var(--danger-light);  color: var(--danger);  }
-.badge-amber { background: var(--warning-light); color: #8F4F1D;        }
+.badge-amber { background: #EBF8FF;              color: #2B6CB0;        }
 .badge-gray  { background: var(--bg);             color: var(--text-muted); }
 
 /* ══ ALERT CARDS ══════════════════════════════════════════ */
@@ -275,7 +275,7 @@ button { font-family: var(--font); }
 }
 .alert-card.critico     { border-left-color: var(--danger);  }
 .alert-card.urgente     { border-left-color: var(--warning); }
-.alert-card.advertencia { border-left-color: #3182CE;        }
+.alert-card.advertencia { border-left-color: #63B3ED;        }
 .alert-card.ok          { border-left-color: var(--primary); }
 
 .alert-card-header  { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
@@ -300,7 +300,7 @@ button { font-family: var(--font); }
   z-index: 9999; display: flex; flex-direction: column; gap: 8px;
 }
 .toast {
-  background: #251F1B; color: #fff;
+  background: #1A202C; color: #fff;
   padding: 14px 18px; border-radius: 12px;
   font-size: 14px; font-weight: 600;
   box-shadow: 0 8px 24px rgba(0,0,0,.25);
@@ -310,15 +310,15 @@ button { font-family: var(--font); }
   border-left: 4px solid transparent;
 }
 .toast.success {
-  background: #2E5A36; color: #fff;
-  border-left-color: #449D55;
+  background: #2B6CB0; color: #fff;
+  border-left-color: #63B3ED;
 }
 .toast.error {
   background: var(--danger); color: #fff;
-  border-left-color: #ff6b6b;
+  border-left-color: #feb2b2;
 }
 .toast.warning {
-  background: #8F4F1D; color: #fff;
+  background: #2C5282; color: #fff;
   border-left-color: var(--warning);
 }
 @keyframes slideIn {
@@ -418,16 +418,19 @@ button { font-family: var(--font); }
 @media (max-width: 767px) { .notif-dropdown { top: calc(var(--header-h) + 10px); right: 16px; left: 16px; width: auto; } }
 
 /* ══════════════════════════════════════════════════════════
-    TOKEN OVERRIDES — MODO OSCURO (EL HUECO)
+    TOKEN OVERRIDES — MODO OSCURO (DEYFARMA OPTIMIZADO)
 ══════════════════════════════════════════════════════════ */
 [data-theme="dark"] {
-  --bg:           #141211; /* Carbón tirando a marrón muy oscuro */
-  --surface:      #1F1B18; /* Superficies de madera oscura */
-  --text:         #EAE6E2; /* Blanco hueso legible */
-  --text-muted:   #9C9690;
-  --border:       #332C27;
-  --shadow:       0 4px 20px rgba(0,0,0,.50);
-  --primary-light: #332317; /* Contraste oscuro para ítems activos */
-  --danger-light:  #3D0A0A;
-  --warning-light: #3D230A;
+  --bg:           #0F172A; /* Azul grisáceo extremadamente profundo (más contraste) */
+  --surface:      #1E293B; /* Superficies y tarjetas un poco más claras que el fondo */
+
+  --text:         #F8FAFC; /* Blanco puro brillante para títulos y datos principales */
+  --text-muted:   #CBD5E1; /* Gris gélido claro para etiquetas secundarias y descripciones */
+
+  --border:       #334155;
+  --shadow:       0 10px 30px rgba(0,0,0,.50);
+
+  --primary-light: #1E3A8A; /* Azul marino medio para ítems activos de navegación */
+  --danger-light:  #451A03; /* Rojo/Ámbar quemado opaco para alertas críticas */
+  --warning-light: #172554; /* Azul oscuro profundo para alertas intermedias */
 }

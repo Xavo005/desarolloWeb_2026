@@ -1,11 +1,11 @@
 :root {
-    --tottus-green: #4A3728; /* Reemplazado por el marrón identitario de El Hueco */
-    --danger-red: #E63946;
-    --warning-orange: #B37D4E; /* Reemplazado por el bronce/terracota */
+    --tottus-green: #1A365D; /* Reemplazado por el azul marino identitario de DeyFarma */
+    --danger-red: #E53E3E;
+    --warning-orange: #3182CE; /* Reemplazado por el celeste/azul informativo */
 }
 
 body { 
-    background-color: #FAF9F8; 
+    background-color: #F7FAFC; 
     font-family: 'Segoe UI', sans-serif; 
     margin: 0;
 }
@@ -34,10 +34,10 @@ body {
     font-size: 10px; padding: 2px 6px; position: absolute; top: 5px; right: 20%;
 }
 
-.badge-rev { background: #B37D4E; }
+.badge-rev { background: #3182CE; }
 
 .banner-quiebre {
-    background: linear-gradient(to right, #F5F2F0, #E2DFDC);
+    background: linear-gradient(to right, #EBF8FF, #EDF2F7);
     padding: 15px; display: flex; align-items: center; gap: 15px;
 }
 
@@ -57,7 +57,7 @@ body {
 .product-title { font-weight: bold; color: #333; font-size: 1.1rem; }
 
 .badge-cat {
-    background-color: rgba(74, 55, 40, 0.1); color: var(--tottus-green);
+    background-color: rgba(26, 54, 93, 0.1); color: var(--tottus-green);
     font-size: 10px; padding: 2px 8px; border-radius: 4px;
 }
 
