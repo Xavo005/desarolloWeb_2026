@@ -15,7 +15,7 @@ from flask import (
 )
 
 from productosAD import (
-    leer_historial, registrar_historial,
+    registrar_historial,
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
     insertar_producto, actualizar_producto, eliminar_producto,
@@ -25,9 +25,7 @@ from productosAD import (
     verificar_dependencias_producto, verificar_dependencias_trabajador
 )
 from historialAD import leer_historial
-
-# Si tu archivo se llama conteoAD.py, entonces debe ser:
-from Conteo_NuevoAD import registrar_conteo, listar_conteos_reales
+from conteoAD import registrar_conteo, listar_conteos_reales
 
 from alertaAD import (
     clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
