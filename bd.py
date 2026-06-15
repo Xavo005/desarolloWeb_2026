@@ -4,7 +4,7 @@ def obtenerconexion():
    try:
        connection = pymysql.connect(
            host='localhost', user='root', password='',
-           database='elHueco',
+           database='botica_sistema',
            cursorclass=pymysql.cursors.DictCursor)
        return connection
    except:
