@@ -1,8 +1,24 @@
 import csv
 import io
+import os
+import base64
+import numpy as np
 from datetime import datetime
 from dotenv import load_dotenv
 from bd import obtenerconexion
+
+#vision
+try:
+    import cv2 as _cv2
+    _MODELS_DIR = os.path.join(os.path.dirname(__file__), 'models')
+    _YUNET_PATH  = os.path.join(_MODELS_DIR, 'face_detection_yunet_2023mar.onnx')
+    _SFACE_PATH  = os.path.join(_MODELS_DIR, 'face_recognition_sface_2021dec.onnx')
+    _DETECTOR   = _cv2.FaceDetectorYN.create(_YUNET_PATH, '', (320, 320), score_threshold=0.75)
+    _RECOGNIZER = _cv2.FaceRecognizerSF.create(_SFACE_PATH, '')
+    FR_DISPONIBLE = True
+except Exception as _e:
+    FR_DISPONIBLE = False
+    print(f'[VISION] Modulo no disponible: {_e}')
 
 load_dotenv()
 
@@ -1070,6 +1086,127 @@ def api_chatbot():
     except Exception as e:
         print(f'ERROR en /api/chatbot: {repr(e)}')
         return jsonify({'respuesta': 'Error interno. Intenta nuevamente.', 'exito': False}), 500
+
+
+# ==============================================================================
+# VISION — RECONOCIMIENTO FACIAL (OpenCV YuNet + SFace)
+# ==============================================================================
+_ROSTROS_DIR = os.path.join(os.path.dirname(__file__), 'rostros_autorizados')
+
+def _decodificar_b64_a_frame(img_b64):
+    #vision
+    import cv2
+    datos = base64.b64decode(img_b64.split(',')[-1])
+    arr   = np.frombuffer(datos, dtype=np.uint8)
+    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    return frame
+
+def _extraer_feature(frame):
+    #vision
+    h, w = frame.shape[:2]
+    _DETECTOR.setInputSize((w, h))
+    _, caras = _DETECTOR.detect(frame)
+    if caras is None or len(caras) == 0:
+        return None
+    cara = caras[0]
+    aligned = _RECOGNIZER.alignCrop(frame, cara)
+    feature = _RECOGNIZER.feature(aligned)
+    return feature
+
+def _consultar_usuario_por_codigo(codigo):
+    #funcion
+    try:
+        conn = obtenerconexion()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, codigo_empleado, nombre, rol, sede FROM usuarios WHERE codigo_empleado=%s AND activo=1",
+                    (codigo,)
+                )
+                row = cur.fetchone()
+                if row and not isinstance(row, dict):
+                    row = dict(zip(['id','codigo_empleado','nombre','rol','sede'], row))
+                return row
+    except Exception:
+        return None
+
+@app.route('/login_facial', methods=['POST'])
+def login_facial():
+    #vision
+    if not FR_DISPONIBLE:
+        return jsonify({'exito': False, 'mensaje': 'Modulo de vision no disponible en este servidor.'}), 503
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'exito': False, 'mensaje': 'JSON invalido.'}), 400
+
+        codigo  = str(data.get('codigo_empleado', '')).strip().upper()
+        img_b64 = data.get('imagen', '')
+        if not codigo or not img_b64:
+            return jsonify({'exito': False, 'mensaje': 'Datos incompletos.'}), 400
+
+        ruta_ref = os.path.join(_ROSTROS_DIR, f'{codigo}.jpg')
+        if not os.path.isfile(ruta_ref):
+            return jsonify({'exito': False, 'mensaje': 'Rostro de referencia no registrado para este codigo.'})
+
+        import cv2
+        frame_cap  = _decodificar_b64_a_frame(img_b64)
+        frame_ref  = cv2.imread(ruta_ref)
+
+        feat_ref = _extraer_feature(frame_ref)
+        if feat_ref is None:
+            return jsonify({'exito': False, 'mensaje': 'No se detecta rostro en la imagen de referencia.'})
+
+        feat_cap = _extraer_feature(frame_cap)
+        if feat_cap is None:
+            return jsonify({'exito': False, 'mensaje': 'No se detecta rostro en la captura. Centra tu rostro.'})
+
+        similitud = _RECOGNIZER.match(feat_ref, feat_cap, _cv2.FaceRecognizerSF_FR_COSINE)
+        if similitud >= 0.363:
+            usuario = _consultar_usuario_por_codigo(codigo)
+            if usuario:
+                session['id']              = usuario.get('id')
+                session['nombre']          = usuario.get('nombre', 'Usuario')
+                session['rol']             = usuario.get('rol', 'operario')
+                session['codigo_empleado'] = usuario.get('codigo_empleado', codigo)
+                session['sede']            = usuario.get('sede', '')
+                return jsonify({'exito': True, 'redirigir': '/dashboard'})
+            return jsonify({'exito': False, 'mensaje': 'Usuario no encontrado en la base de datos.'})
+
+        return jsonify({'exito': False, 'mensaje': f'Rostro no coincide (similitud: {similitud:.2f}).'})
+    except Exception as e:
+        print(f'ERROR en /login_facial: {repr(e)}')
+        return jsonify({'exito': False, 'mensaje': 'Error interno.'}), 500
+
+
+@app.route('/registrar_rostro', methods=['POST'])
+def registrar_rostro():
+    #vision
+    if not FR_DISPONIBLE:
+        return jsonify({'exito': False, 'mensaje': 'Modulo de vision no disponible.'}), 503
+    try:
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({'exito': False, 'mensaje': 'JSON invalido.'}), 400
+
+        codigo  = str(data.get('codigo_empleado', '')).strip().upper()
+        img_b64 = data.get('imagen', '')
+        if not codigo or not img_b64:
+            return jsonify({'exito': False, 'mensaje': 'Datos incompletos.'}), 400
+
+        frame = _decodificar_b64_a_frame(img_b64)
+        feat  = _extraer_feature(frame)
+        if feat is None:
+            return jsonify({'exito': False, 'mensaje': 'No se detecta un rostro claro. Acercate a la camara con buena iluminacion.'})
+
+        import cv2
+        os.makedirs(_ROSTROS_DIR, exist_ok=True)
+        ruta_destino = os.path.join(_ROSTROS_DIR, f'{codigo}.jpg')
+        cv2.imwrite(ruta_destino, frame)
+        return jsonify({'exito': True, 'mensaje': f'Rostro de {codigo} registrado correctamente.'})
+    except Exception as e:
+        print(f'ERROR en /registrar_rostro: {repr(e)}')
+        return jsonify({'exito': False, 'mensaje': 'Error interno al guardar el rostro.'}), 500
 
 
 # ==============================================================================

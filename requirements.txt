@@ -3,6 +3,12 @@ pymysql>=1.1
 python-dotenv>=1.0
 werkzeug>=3.0
 
+# Vision — Reconocimiento Facial
+face_recognition
+opencv-python-headless
+numpy
+dlib
+
 #py -3 -m venv .venv
 #.venv\Scripts\activate
 #pip install -r requirements.txt
