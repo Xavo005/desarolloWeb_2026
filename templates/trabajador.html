@@ -19,7 +19,7 @@
       <div style="display:flex; gap:12px; margin-top:16px">
         <div class="form-group" style="flex:1">
           <label style="font-size:13px; font-weight:600; color:var(--text)">Código de Empleado</label>
-          <input type="text" name="codigo_empleado" placeholder="SUP-001" required style="width:100%; margin-top:4px">
+          <input type="text" name="codigo_empleado" id="campo-codigo" placeholder="SUP-001" required style="width:100%; margin-top:4px" oninput="this.value=this.value.toUpperCase()">
         </div>
         
         <div class="form-group" style="flex:1">
@@ -67,5 +67,160 @@
       </div>
     </form>
   </div>
+
+  <!-- ── Sección: Registrar Rostro Base ── -->
+  <div class="card" style="margin-top:20px">
+    <div style="font-size:16px; font-weight:600; color:var(--primary); border-left:3px solid var(--primary); padding-left:10px; margin-bottom:16px; display:flex; align-items:center; gap:10px">
+      <i class="fa-solid fa-camera" style="font-size:18px"></i>
+      Registrar Rostro para Acceso Biométrico
+    </div>
+
+    <div style="font-size:13px; color:var(--text-muted); margin-bottom:16px; background:var(--bg); border-radius:8px; padding:10px 14px; border:1px solid var(--border)">
+      <i class="fa-solid fa-circle-info" style="color:var(--primary)"></i>
+      Opcional. Permite que el trabajador inicie sesión usando reconocimiento facial en lugar de contraseña. El código de empleado del formulario de arriba se usará como identificador.
+    </div>
+
+    <!-- Tips -->
+    <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px">
+      <div style="display:flex; align-items:center; gap:8px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; font-size:12px; color:#92400e; font-weight:500">
+        <i class="fa-solid fa-glasses"></i> Quítate los lentes antes de capturar
+      </div>
+      <div style="display:flex; align-items:center; gap:8px; background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:8px 12px; font-size:12px; color:#92400e; font-weight:500">
+        <i class="fa-solid fa-eye"></i> Mira de frente a la cámara con buena iluminación
+      </div>
+    </div>
+
+    <!-- Contenedor de cámara / preview -->
+    <div id="camara-wrap" style="display:none; flex-direction:column; align-items:center; gap:12px; margin-bottom:16px">
+      <div style="position:relative; width:260px; height:260px; border-radius:50%; overflow:hidden; border:3px solid var(--primary); box-shadow: 0 0 20px rgba(91,142,240,0.3)">
+        <video id="camara-reg" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; transform:scaleX(-1)"></video>
+        <div style="position:absolute; inset:0; border-radius:50%; box-shadow:inset 0 0 0 3px rgba(91,142,240,0.7); pointer-events:none"></div>
+      </div>
+      <canvas id="canvas-reg" width="640" height="480" style="display:none"></canvas>
+    </div>
+
+    <!-- Imagen capturada preview -->
+    <div id="preview-wrap" style="display:none; flex-direction:column; align-items:center; gap:8px; margin-bottom:16px">
+      <img id="preview-img" src="" alt="Captura" style="width:160px; height:160px; border-radius:50%; object-fit:cover; border:3px solid #4ade80; box-shadow:0 0 14px rgba(74,222,128,0.3)">
+      <div style="font-size:12px; color:#4ade80; font-weight:600"><i class="fa-solid fa-check-circle"></i> Rostro capturado</div>
+    </div>
+
+    <div id="reg-status" style="font-size:13px; color:var(--text-muted); text-align:center; min-height:18px; margin-bottom:12px"></div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap">
+      <button type="button" id="btn-encender" class="btn-secondary" style="flex:1" onclick="encenderCamaraReg()">
+        <i class="fa-solid fa-camera"></i> Encender Cámara
+      </button>
+      <button type="button" id="btn-capturar" class="btn-primary" style="flex:1; display:none" onclick="capturarRostroReg()">
+        <i class="fa-solid fa-circle-dot"></i> Capturar Rostro
+      </button>
+      <button type="button" id="btn-guardar-rostro" class="btn-primary" style="flex:1; display:none; background:#16a34a; border-color:#16a34a" onclick="guardarRostroReg()">
+        <i class="fa-solid fa-floppy-disk"></i> Guardar Rostro
+      </button>
+      <button type="button" id="btn-repetir" class="btn-secondary" style="flex:1; display:none" onclick="repetirCaptura()">
+        <i class="fa-solid fa-rotate-left"></i> Repetir
+      </button>
+    </div>
+  </div>
+
 </div>
+
+<script>
+var _streamReg = null;
+var _imgCapturadaB64 = null;
+
+function encenderCamaraReg() {
+  document.getElementById('camara-wrap').style.display = 'flex';
+  document.getElementById('btn-encender').style.display = 'none';
+  document.getElementById('btn-capturar').style.display = '';
+  setRegStatus('Cámara activa. Cuando estés listo, pulsa Capturar Rostro.');
+
+  navigator.mediaDevices.getUserMedia({ video: { width:640, height:480 } })
+    .then(function(s) {
+      _streamReg = s;
+      document.getElementById('camara-reg').srcObject = s;
+    })
+    .catch(function() {
+      setRegStatus('⚠ No se pudo acceder a la cámara.', true);
+      document.getElementById('btn-encender').style.display = '';
+      document.getElementById('btn-capturar').style.display = 'none';
+      document.getElementById('camara-wrap').style.display = 'none';
+    });
+}
+
+function capturarRostroReg() {
+  var video  = document.getElementById('camara-reg');
+  var canvas = document.getElementById('canvas-reg');
+  var ctx    = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  _imgCapturadaB64 = canvas.toDataURL('image/jpeg', 0.9);
+
+  var img = document.getElementById('preview-img');
+  img.src = _imgCapturadaB64;
+  document.getElementById('preview-wrap').style.display = 'flex';
+  document.getElementById('camara-wrap').style.display  = 'none';
+
+  document.getElementById('btn-capturar').style.display = 'none';
+  document.getElementById('btn-guardar-rostro').style.display = '';
+  document.getElementById('btn-repetir').style.display  = '';
+  setRegStatus('Imagen capturada. Verifica que tu rostro sea visible y guarda.');
+
+  if (_streamReg) {
+    _streamReg.getTracks().forEach(function(t){ t.stop(); });
+    _streamReg = null;
+  }
+}
+
+function guardarRostroReg() {
+  var codigo = document.getElementById('campo-codigo').value.trim().toUpperCase();
+  if (!codigo) {
+    setRegStatus('⚠ Escribe el código de empleado en el formulario de arriba primero.', true);
+    return;
+  }
+  if (!_imgCapturadaB64) {
+    setRegStatus('⚠ Primero captura el rostro.', true);
+    return;
+  }
+
+  setRegStatus('Guardando...');
+  document.getElementById('btn-guardar-rostro').disabled = true;
+
+  fetch('/registrar_rostro', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codigo_empleado: codigo, imagen: _imgCapturadaB64 })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data) {
+    if (data.exito) {
+      setRegStatus('✓ ' + (data.mensaje || 'Rostro guardado correctamente.'));
+      document.getElementById('btn-guardar-rostro').style.display = 'none';
+      document.getElementById('btn-repetir').style.display = 'none';
+      document.getElementById('btn-encender').style.display = '';
+      document.getElementById('btn-encender').textContent = 'Capturar otro rostro';
+    } else {
+      setRegStatus('⚠ ' + (data.mensaje || 'No se pudo guardar el rostro.'), true);
+      document.getElementById('btn-guardar-rostro').disabled = false;
+    }
+  })
+  .catch(function() {
+    setRegStatus('⚠ Error de red. Intenta nuevamente.', true);
+    document.getElementById('btn-guardar-rostro').disabled = false;
+  });
+}
+
+function repetirCaptura() {
+  _imgCapturadaB64 = null;
+  document.getElementById('preview-wrap').style.display = 'none';
+  document.getElementById('btn-guardar-rostro').style.display = 'none';
+  document.getElementById('btn-repetir').style.display = 'none';
+  encenderCamaraReg();
+}
+
+function setRegStatus(msg, esError) {
+  var el = document.getElementById('reg-status');
+  el.textContent = msg;
+  el.style.color = esError ? '#ef4444' : 'var(--text-muted)';
+}
+</script>
 {% endblock %}

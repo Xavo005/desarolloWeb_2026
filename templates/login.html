@@ -39,6 +39,152 @@
     .error-banner { background: var(--danger-light); color: var(--danger); border-radius: 8px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
     .login-footer { text-align: center; margin-top: 24px; font-size: 11px; color: var(--text-muted); }
     @media (min-width: 768px) { .login-left { display: flex; } }
+
+    /* ── Botón reconocimiento facial ── */
+    .btn-face {
+      width: 100%;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      padding: 13px 20px;
+      border: 2px solid var(--primary);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--primary);
+      font-size: 14px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-face:hover { background: var(--primary); color: #fff; }
+
+    /* ── Modal overlay ── */
+    #modal-facial {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 9999;
+      align-items: center; justify-content: center;
+    }
+    #modal-facial.activo { display: flex; }
+
+    .facial-box {
+      background: #111;
+      border-radius: 20px;
+      padding: 24px 24px 28px;
+      width: 340px;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 16px;
+      position: relative;
+    }
+
+    .facial-title {
+      color: #fff;
+      font-weight: 700;
+      font-size: 17px;
+      text-align: center;
+    }
+
+    /* Campo para código de empleado */
+    .facial-input-wrap {
+      width: 100%;
+    }
+    .facial-input-wrap label {
+      color: #aaa;
+      font-size: 12px;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .facial-input-wrap input {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1.5px solid #333;
+      background: #1a1a1a;
+      color: #fff;
+      font-size: 14px;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .facial-input-wrap input:focus {
+      outline: none;
+      border-color: #5b8ef0;
+    }
+
+    /* Video + máscara óvalo */
+    .video-wrap {
+      position: relative;
+      width: 280px; height: 280px;
+      border-radius: 50%;
+      overflow: hidden;
+      border: 3px solid #5b8ef0;
+      box-shadow: 0 0 24px rgba(91,142,240,0.4);
+    }
+    #camara-facial {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    /* Máscara óvalo semitransparente que delimita la zona del rostro */
+    .face-mask {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      box-shadow: inset 0 0 0 4px rgba(91,142,240,0.8);
+      pointer-events: none;
+    }
+
+    .facial-tips {
+      display: flex; flex-direction: column; gap: 6px;
+      width: 100%;
+    }
+    .tip {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(255,200,0,0.1);
+      border: 1px solid rgba(255,200,0,0.3);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #ffd54f;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .facial-status {
+      color: #aaa;
+      font-size: 13px;
+      text-align: center;
+      min-height: 20px;
+      transition: color 0.3s;
+    }
+    .facial-status.ok { color: #4ade80; font-weight: 600; }
+    .facial-status.error { color: #f87171; }
+
+    /* Barra de progreso de escaneo */
+    .scan-bar-wrap {
+      width: 100%;
+      height: 4px;
+      background: #222;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .scan-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #5b8ef0, #4ade80);
+      border-radius: 4px;
+      transition: width 0.5s linear;
+    }
+
+    .btn-cerrar-modal {
+      position: absolute;
+      top: 14px; right: 16px;
+      background: none; border: none;
+      color: #666; font-size: 20px;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+    .btn-cerrar-modal:hover { color: #fff; }
+
+    /* Canvas oculto para captura */
+    #canvas-facial { display: none; }
   </style>
 </head>
 <body>
@@ -83,6 +229,10 @@
           </button>
         </form>
         <div class="divider">·</div>
+        <button class="btn-face" id="btn-facial" onclick="abrirModalFacial()">
+          <i class="fa-solid fa-face-smile"></i> Ingresar con Reconocimiento Facial
+        </button>
+        <div class="divider" style="margin-top:16px">·</div>
         <a href="{{ url_for('restablecer') }}" class="forgot-link">¿Olvidó su contraseña?</a>
       </div>
       <div class="login-footer">
@@ -90,12 +240,169 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Modal Reconocimiento Facial ── -->
+  <div id="modal-facial">
+    <div class="facial-box">
+      <button class="btn-cerrar-modal" onclick="cerrarModalFacial()" title="Cerrar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="facial-title">
+        <i class="fa-solid fa-camera" style="color:#5b8ef0"></i>
+        Reconocimiento Facial
+      </div>
+
+      <div class="facial-input-wrap">
+        <label>Código de empleado</label>
+        <input type="text" id="facial-codigo" placeholder="Ej. EMP-0001" autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+      </div>
+
+      <div class="video-wrap">
+        <video id="camara-facial" autoplay playsinline muted></video>
+        <div class="face-mask"></div>
+      </div>
+
+      <canvas id="canvas-facial" width="640" height="480"></canvas>
+
+      <div class="facial-tips">
+        <div class="tip">
+          <i class="fa-solid fa-glasses"></i>
+          Quítate los lentes antes de continuar
+        </div>
+        <div class="tip">
+          <i class="fa-solid fa-eye"></i>
+          Mira de frente a la cámara
+        </div>
+      </div>
+
+      <div class="scan-bar-wrap"><div class="scan-bar" id="scan-bar"></div></div>
+      <div class="facial-status" id="facial-status">Ingresa tu código y aguarda el escaneo automático</div>
+    </div>
+  </div>
+
   <script>
     document.getElementById('toggle-pwd').addEventListener('click', () => {
       const p = document.getElementById('pwd');
       const i = document.getElementById('toggle-pwd');
       p.type = p.type === 'password' ? 'text' : 'password';
       i.className = p.type === 'password' ? 'fa-solid fa-eye right' : 'fa-solid fa-eye-slash right';
+    });
+
+    // ── Lógica Zero-Click Facial ──
+    var _stream = null;
+    var _intervalo = null;
+    var _escaneando = false;
+    var _progreso = 0;
+
+    function abrirModalFacial() {
+      document.getElementById('modal-facial').classList.add('activo');
+      iniciarCamara();
+    }
+
+    function cerrarModalFacial() {
+      detenerEscaneo();
+      document.getElementById('modal-facial').classList.remove('activo');
+      setStatus('Ingresa tu código y aguarda el escaneo automático', '');
+      document.getElementById('scan-bar').style.width = '0%';
+      document.getElementById('facial-codigo').value = '';
+    }
+
+    function iniciarCamara() {
+      if (_stream) return;
+      navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } })
+        .then(function(s) {
+          _stream = s;
+          document.getElementById('camara-facial').srcObject = s;
+          setStatus('Cámara activa. Ingresa tu código de empleado y el sistema escaneará automáticamente.', '');
+          document.getElementById('facial-codigo').addEventListener('input', manejarCodigo);
+        })
+        .catch(function() {
+          setStatus('No se pudo acceder a la cámara. Verifica los permisos.', 'error');
+        });
+    }
+
+    function manejarCodigo() {
+      var codigo = document.getElementById('facial-codigo').value.trim();
+      if (codigo.length >= 3 && !_escaneando) {
+        iniciarEscaneoAutomatico();
+      } else if (codigo.length < 3 && _escaneando) {
+        detenerEscaneo();
+      }
+    }
+
+    function iniciarEscaneoAutomatico() {
+      _escaneando = true;
+      _progreso = 0;
+      setStatus('Escaneando... mantén tu rostro centrado.', '');
+      _intervalo = setInterval(capturarYEnviar, 500);
+    }
+
+    function detenerEscaneo() {
+      _escaneando = false;
+      clearInterval(_intervalo);
+      _intervalo = null;
+    }
+
+    function capturarYEnviar() {
+      var codigo = document.getElementById('facial-codigo').value.trim().toUpperCase();
+      if (!codigo) return;
+
+      var video  = document.getElementById('camara-facial');
+      var canvas = document.getElementById('canvas-facial');
+      var ctx    = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      var imgB64 = canvas.toDataURL('image/jpeg', 0.85);
+
+      // Avance visual de la barra
+      _progreso = Math.min(_progreso + 12, 90);
+      document.getElementById('scan-bar').style.width = _progreso + '%';
+
+      fetch('/login_facial', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigo_empleado: codigo, imagen: imgB64 })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.exito) {
+          detenerEscaneo();
+          document.getElementById('scan-bar').style.width = '100%';
+          setStatus('✓ Identidad verificada. Redirigiendo...', 'ok');
+          setTimeout(function() {
+            window.location.href = data.redirigir || '/dashboard';
+          }, 600);
+        } else {
+          var msg = data.mensaje || 'Rostro no reconocido.';
+          if (msg.indexOf('no registrado') !== -1 || msg.indexOf('no encontrado') !== -1) {
+            detenerEscaneo();
+            setStatus('⚠ ' + msg, 'error');
+          } else {
+            setStatus('Escaneando... ' + msg, '');
+          }
+        }
+      })
+      .catch(function() {
+        setStatus('Error de red. Reintentando...', '');
+      });
+    }
+
+    function setStatus(msg, tipo) {
+      var el = document.getElementById('facial-status');
+      el.textContent = msg;
+      el.className = 'facial-status' + (tipo ? ' ' + tipo : '');
+    }
+
+    function detenerStreamCamara() {
+      if (_stream) {
+        _stream.getTracks().forEach(function(t) { t.stop(); });
+        _stream = null;
+      }
+    }
+
+    // Al cerrar con overlay
+    document.getElementById('modal-facial').addEventListener('click', function(e) {
+      if (e.target === this) cerrarModalFacial();
     });
   </script>
 </body>
