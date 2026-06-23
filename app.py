@@ -1242,6 +1242,174 @@ def registrar_rostro():
         return jsonify({'exito': False, 'mensaje': 'Error interno al guardar el rostro.'}), 500
 
 
+
+# APIS JWT — PRODUCTOS (5/5 endpoints)
+# ==============================================================================
+@app.route('/api_guardar_producto_jwt', methods=['POST'])
+@jwt_required()
+def api_guardar_producto_jwt():
+    try:
+        d = request.json
+        obj = clsProducto(
+            None, d['sku'], d['nombre'], d.get('categoria', ''),
+            d.get('stock_total', 0), d.get('precio_unitario', 0),
+            d.get('venta_dia', 0), d.get('ubicacion_gondola', '')
+        )
+        if insertar_producto(obj):
+            return jsonify({"code": 1, "message": "Producto registrado"})
+        return jsonify({"code": 0, "message": "Error al insertar producto"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_actualizar_producto', methods=['POST'])
+@jwt_required()
+def api_actualizar_producto():
+    try:
+        d = request.json
+        obj = clsProducto(
+            d['id'], d['sku'], d['nombre'], d.get('categoria', ''),
+            d.get('stock_total', 0), d.get('precio_unitario', 0),
+            d.get('venta_dia', 0), d.get('ubicacion_gondola', '')
+        )
+        if actualizar_producto(obj):
+            return jsonify({"code": 1, "message": "Producto actualizado"})
+        return jsonify({"code": 0, "message": "Error al actualizar"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_eliminar_producto', methods=['POST'])
+@jwt_required()
+def api_eliminar_producto():
+    try:
+        prod_id = request.json.get('id')
+        bloqueo = _verificar_dependencias_producto(prod_id)
+        if bloqueo:
+            return jsonify({"code": 0, "message": f"No se puede eliminar: {bloqueo}"})
+        if eliminar_producto(prod_id):
+            return jsonify({"code": 1, "message": "Producto desactivado"})
+        return jsonify({"code": 0, "message": "No encontrado o error"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_productoxid', methods=['GET', 'POST'])
+@jwt_required()
+def api_leer_productoxid():
+    try:
+        prod_id = (request.json or request.args).get('id')
+        resultado = leer_producto_por_id(int(prod_id))
+        if resultado:
+            return jsonify({"code": 1, "data": resultado})
+        return jsonify({"code": 0, "message": "No encontrado"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_productos_jwt', methods=['GET'])
+@jwt_required()
+def api_leer_productos_jwt():
+    try:
+        resultado = leer_productos()
+        return jsonify({"code": 1, "data": resultado})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+# ==============================================================================
+# APIS JWT — ALERTAS (5/5 endpoints)
+# ==============================================================================
+@app.route('/api_guardar_alerta', methods=['POST'])
+@jwt_required()
+def api_guardar_alerta():
+    try:
+        d = request.json
+        obj = clsAlerta(
+            producto_id=d['producto_id'],
+            sku=d.get('sku', ''),
+            producto=d.get('producto', ''),
+            categoria=d.get('categoria', ''),
+            unidades=d.get('unidades', 0),
+            venta_dia=d.get('venta_dia', 0),
+            estado_transf=d.get('estado_transf', 'pendiente'),
+            stock_minimo=d.get('stock_minimo', 5)
+        )
+        conn = obtenerconexion()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO alertas_quiebre
+                       (producto_id, sku, producto, categoria, venta_dia, stock_minimo, estado_transf, activo)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,1)""",
+                    (obj.producto_id, obj.sku, obj.producto, obj.categoria,
+                     obj.venta_dia, obj.stock_minimo, obj.estado_transf)
+                )
+            conn.commit()
+        return jsonify({"code": 1, "message": "Alerta registrada"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_actualizar_alerta', methods=['POST'])
+@jwt_required()
+def api_actualizar_alerta():
+    try:
+        d = request.json
+        obj = clsAlerta(
+            id=d['id'],
+            unidades=d.get('unidades', 0),
+            venta_dia=d.get('venta_dia', 0),
+            estado_transf=d.get('estado_transf', 'pendiente'),
+            stock_minimo=d.get('stock_minimo')
+        )
+        if actualizar_alerta_sincronizada(obj):
+            return jsonify({"code": 1, "message": "Alerta actualizada"})
+        return jsonify({"code": 0, "message": "Error al actualizar"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_eliminar_alerta', methods=['POST'])
+@jwt_required()
+def api_eliminar_alerta():
+    try:
+        alerta_id = request.json.get('id')
+        if eliminar_alerta(int(alerta_id)):
+            return jsonify({"code": 1, "message": "Alerta eliminada"})
+        return jsonify({"code": 0, "message": "No encontrada o error"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_alertaxid', methods=['GET', 'POST'])
+@jwt_required()
+def api_leer_alertaxid():
+    try:
+        alerta_id = int((request.json or request.args).get('id'))
+        conn = obtenerconexion()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM alertas_quiebre WHERE id=%s", (alerta_id,))
+                row = cur.fetchone()
+        if row:
+            return jsonify({"code": 1, "data": row})
+        return jsonify({"code": 0, "message": "No encontrada"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_alertas_jwt', methods=['GET'])
+@jwt_required()
+def api_leer_alertas_jwt():
+    try:
+        resultado = obtener_alertas_activas()
+        return jsonify({"code": 1, "data": resultado})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+# ==============================================================================
 # ==============================================================================
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
