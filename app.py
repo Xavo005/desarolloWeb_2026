@@ -61,6 +61,8 @@ from usuarioAD import (
 )
 from chatbotAD import procesar_mensaje
 
+
+
 def authenticate(username, password):
     try:
         conn = obtenerconexion()
@@ -1243,6 +1245,8 @@ def registrar_rostro():
 
 
 
+
+# ==============================================================================
 # APIS JWT — PRODUCTOS (5/5 endpoints)
 # ==============================================================================
 @app.route('/api_guardar_producto_jwt', methods=['POST'])
@@ -1410,6 +1414,249 @@ def api_leer_alertas_jwt():
 
 
 # ==============================================================================
+# APIS JWT — SEGMENTACION (5/5 endpoints)
+# ==============================================================================
+@app.route('/api_guardar_segmentacion_jwt', methods=['POST'])
+@jwt_required()
+def api_guardar_segmentacion_jwt():
+    try:
+        d = request.json
+        obj = clsSegmentacion(
+            producto_id=d['producto_id'],
+            stock_cliente_final=d.get('stock_cliente_final', 0),
+            stock_revendedor=d.get('stock_revendedor', 0),
+            limite_compra_final=d.get('limite_compra_final', 0),
+            limite_compra_revendedor=d.get('limite_compra_revendedor', 0),
+            motivo=d.get('motivo', '')
+        )
+        if insertar_segmentacion(obj):
+            return jsonify({"code": 1, "message": "Segmentacion registrada"})
+        return jsonify({"code": 0, "message": "Error al insertar"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_actualizar_segmentacion', methods=['POST'])
+@jwt_required()
+def api_actualizar_segmentacion():
+    try:
+        d = request.json
+        obj = clsSegmentacion(
+            id=d['id'],
+            stock_cliente_final=d.get('stock_cliente_final', 0),
+            stock_revendedor=d.get('stock_revendedor', 0),
+            limite_compra_final=d.get('limite_compra_final', 0),
+            limite_compra_revendedor=d.get('limite_compra_revendedor', 0),
+            motivo=d.get('motivo', '')
+        )
+        if actualizar_segmentacion(obj):
+            return jsonify({"code": 1, "message": "Segmentacion actualizada"})
+        return jsonify({"code": 0, "message": "Error al actualizar"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_eliminar_segmentacion', methods=['POST'])
+@jwt_required()
+def api_eliminar_segmentacion():
+    try:
+        seg_id = request.json.get('id')
+        if eliminar_segmentacion(int(seg_id)):
+            return jsonify({"code": 1, "message": "Segmentacion eliminada"})
+        return jsonify({"code": 0, "message": "No encontrada o error"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_segmentacionxid', methods=['GET', 'POST'])
+@jwt_required()
+def api_leer_segmentacionxid():
+    try:
+        seg_id = int((request.json or request.args).get('id'))
+        resultado = obtener_segmentacion_xID(seg_id)
+        if resultado:
+            return jsonify({"code": 1, "data": resultado})
+        return jsonify({"code": 0, "message": "No encontrada"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_segmentaciones_jwt', methods=['GET'])
+@jwt_required()
+def api_leer_segmentaciones_jwt():
+    try:
+        resultado = obtener_segmentaciones()
+        return jsonify({"code": 1, "data": resultado})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+# ==============================================================================
+# APIS JWT — HISTORIAL (5/5 endpoints)
+# ==============================================================================
+@app.route('/api_guardar_historial', methods=['POST'])
+@jwt_required()
+def api_guardar_historial():
+    try:
+        d = request.json
+        registrar_historial(
+            p_producto_id=d['producto_id'],
+            p_accion=d.get('accion', 'CREATE'),
+            p_campo=d.get('campo', ''),
+            p_anterior=d.get('valor_anterior', ''),
+            p_nuevo=d.get('valor_nuevo', ''),
+            p_motivo=d.get('motivo', '')
+        )
+        return jsonify({"code": 1, "message": "Historial registrado"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_actualizar_historial', methods=['POST'])
+@jwt_required()
+def api_actualizar_historial():
+    try:
+        d = request.json
+        conn = obtenerconexion()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE historial_ajustes SET motivo=%s WHERE id=%s",
+                    (d.get('motivo', ''), d['id'])
+                )
+            conn.commit()
+        return jsonify({"code": 1, "message": "Historial actualizado"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_eliminar_historial', methods=['POST'])
+@jwt_required()
+def api_eliminar_historial():
+    try:
+        hist_id = request.json.get('id')
+        conn = obtenerconexion()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM historial_ajustes WHERE id=%s", (hist_id,))
+            conn.commit()
+        return jsonify({"code": 1, "message": "Registro de historial eliminado"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_historialxid', methods=['GET', 'POST'])
+@jwt_required()
+def api_leer_historialxid():
+    try:
+        hist_id = int((request.json or request.args).get('id'))
+        conn = obtenerconexion()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT * FROM v_historial_completo WHERE id=%s", (hist_id,))
+                row = cur.fetchone()
+        if row:
+            if isinstance(row.get('fecha'), datetime):
+                row['fecha'] = row['fecha'].strftime('%d/%m/%Y %H:%M')
+            return jsonify({"code": 1, "data": row})
+        return jsonify({"code": 0, "message": "No encontrado"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_historial_jwt', methods=['GET'])
+@jwt_required()
+def api_leer_historial_jwt():
+    try:
+        resultado = leer_historial(p_limite=200)
+        if resultado:
+            for row in resultado:
+                if isinstance(row.get('fecha'), datetime):
+                    row['fecha'] = row['fecha'].strftime('%d/%m/%Y %H:%M')
+        return jsonify({"code": 1, "data": resultado})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+# ==============================================================================
+# APIS JWT — USUARIOS / TRABAJADORES (5/5 endpoints)
+# ==============================================================================
+@app.route('/api_guardar_usuario_jwt', methods=['POST'])
+@jwt_required()
+def api_guardar_usuario_jwt():
+    try:
+        d = request.json
+        obj = clsTrabajador(
+            None, d.get('nombre', ''), d.get('codigo_empleado', ''),
+            d.get('email', ''), d.get('sede', ''), d.get('rol', 'operario'),
+            d.get('password', '123456'), 1
+        )
+        if insertar_trabajador(obj):
+            return jsonify({"code": 1, "message": "Usuario registrado"})
+        return jsonify({"code": 0, "message": "Error al registrar (codigo duplicado)"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_actualizar_usuario', methods=['POST'])
+@jwt_required()
+def api_actualizar_usuario():
+    try:
+        d = request.json
+        obj = clsTrabajador()
+        obj.id = d['id']
+        obj.nombre = d.get('nombre', '')
+        obj.codigo_empleado = d.get('codigo_empleado', '')
+        obj.email = d.get('email', '')
+        obj.sede = d.get('sede', '')
+        obj.rol = d.get('rol', 'operario')
+        obj.palabra_clave = d.get('palabra_clave', '')
+        obj.password = d.get('password', '')
+        if actualizar_trabajador(obj):
+            return jsonify({"code": 1, "message": "Usuario actualizado"})
+        return jsonify({"code": 0, "message": "Error al actualizar"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_eliminar_usuario', methods=['POST'])
+@jwt_required()
+def api_eliminar_usuario():
+    try:
+        usuario_id = request.json.get('id')
+        bloqueo = _verificar_dependencias_trabajador(usuario_id)
+        if bloqueo:
+            return jsonify({"code": 0, "message": f"No se puede eliminar: {bloqueo}"})
+        if eliminar_trabajador(int(usuario_id)):
+            return jsonify({"code": 1, "message": "Usuario desactivado"})
+        return jsonify({"code": 0, "message": "No encontrado o error"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_usuarioxid', methods=['GET', 'POST'])
+@jwt_required()
+def api_leer_usuarioxid():
+    try:
+        usuario_id = int((request.json or request.args).get('id'))
+        resultado = leer_trabajador_por_id(usuario_id)
+        if resultado:
+            return jsonify({"code": 1, "data": resultado})
+        return jsonify({"code": 0, "message": "No encontrado"})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
+@app.route('/api_leer_usuarios_jwt', methods=['GET'])
+@jwt_required()
+def api_leer_usuarios_jwt():
+    try:
+        resultado = leer_trabajadores()
+        return jsonify({"code": 1, "data": resultado})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+
+
 # ==============================================================================
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
