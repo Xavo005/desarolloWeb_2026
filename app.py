@@ -35,7 +35,7 @@ from productosAD import (
     buscar_sku,
     verificar_dependencias_producto, verificar_dependencias_trabajador
 )
-from historialAD import leer_historial
+from historialAD import leer, leer_por_id, guardar, actualizar, eliminar, clsHistorial
 from conteoAD import registrar_conteo, listar_conteos_reales
 
 from alertaAD import (
@@ -274,9 +274,7 @@ def api_listar_alertas():
     except Exception as e:
         return jsonify({"code": -1, "data": {}, "message": repr(e)})
 
-# ==============================================================================
-# HISTORIAL-DIEGO CALDERON
-# ==============================================================================
+
 @app.context_processor
 def inject_alertas():
     return dict(alertas_count=contar_alertas())
@@ -497,59 +495,6 @@ def api_buscar_sku():
         return jsonify(resultado)
     except Exception as e:
         return jsonify({"code": -1, "message": repr(e)})
-
-
-# ==============================================================================
-# API — HISTORIAL CSV (MODIFICADO PARA POST)
-# ==============================================================================
-@app.route('/api/historial/exportar', methods=['POST']) # <--- Cambiado a POST
-def api_exportar_historial():
-    def generate():
-        data = io.StringIO()
-        writer = csv.writer(data)
-        
-        # Cabeceras
-        writer.writerow(['ID', 'Producto ID', 'Accion', 'Campo', 'Anterior', 'Nuevo', 'Motivo', 'Fecha'])
-        yield data.getvalue()
-        data.seek(0)
-        data.truncate(0)
-
-        conn = obtenerconexion()
-        try:
-            with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT id, producto_id, accion, campo_modificado, 
-                           valor_anterior, valor_nuevo, motivo, fecha 
-                    FROM historial_ajustes ORDER BY fecha DESC
-                """)
-                
-                for reg in cursor:
-                    writer.writerow([
-                        reg.get('id'), 
-                        reg.get('producto_id'), 
-                        reg.get('accion'), 
-                        reg.get('campo_modificado') or 'N/A', 
-                        reg.get('valor_anterior') or '-', 
-                        reg.get('valor_nuevo') or '-', 
-                        reg.get('motivo'), 
-                        reg.get('fecha')
-                    ])
-                    yield data.getvalue()
-                    data.seek(0)
-                    data.truncate(0)
-        finally:
-            conn.close()
-
-    return Response(
-        stream_with_context(generate()),
-        mimetype='text/csv',
-        headers={"Content-Disposition": "attachment;filename=historial_inventario.csv"}
-    )
-
-
-
-
-
 
 # ==============================================================================
 # CRUD - SEGMENTACIONES - Gianella Torres
@@ -778,9 +723,6 @@ def api_guardar_usuario():
     
 
 
-#==============================================================================
-# APIS - CONTEOS MANUALES - Diego Calderon
-#=============================================================================
 
     
 # --- LISTAR ---
@@ -836,24 +778,106 @@ def api_get_alertas():
 
 
 # ==============================================================================
-# HISTORIAL
+# HISTORIAL -DIEGO CALDERON
 # ==============================================================================
-@app.route('/api/historial/listar', methods=['POST'])
-def api_listar_historial():
+
+# 1. api_leer_entidades [GET]
+@app.route('/api/leer_entidades', methods=['GET'])
+def api_leer_entidades():
     try:
-        # Llamamos a tu función de la capa de datos
-        resultado = leer_historial(p_limite=200)
-        
-        # Formateo de fechas para que el JSON no explote con objetos datetime
-        if resultado:
-            for row in resultado:
-                if isinstance(row.get('fecha'), datetime):
-                    row['fecha'] = row['fecha'].strftime('%d/%m/%Y %H:%M')
-                    
-        return jsonify({"code": 1, "data": resultado})
+        data = leer() # Sin el prefijo
+        return jsonify(data)
     except Exception as e:
-        print("Error en /api/historial/listar:", repr(e))
-        return jsonify({"code": 0, "message": "Error al cargar historial"})
+        return jsonify({"error": str(e)}), 500
+
+# 2. api_leer_entidadxd [GET, POST]
+@app.route('/api/leer_entidadxd', methods=['GET', 'POST'])
+def api_leer_entidadxd():
+    p_id = request.args.get('id') if request.method == 'GET' else request.json.get('id')
+    try:
+        data = leer_por_id(p_id)
+        
+        # Si hay datos, devolvemos 200 (se pone por defecto al no especificar nada)
+        if data:
+            return jsonify(data) 
+        
+        # Si NO hay datos, ahí recién devolvemos 404
+        else:
+            return jsonify({"mensaje": "No encontrado"}), 404
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500.
+
+# 3. api_guardarentidad [POST]
+@app.route('/api/guardarentidad', methods=['POST'])
+def api_guardarentidad():
+    data = request.json
+    # Quitamos 'p_empleado_rol'
+    h = clsHistorial(
+        p_producto_id=data.get('producto_id'),
+        p_usuario_id=data.get('usuario_id'),
+        p_empleado_nombre=data.get('empleado_nombre'),
+        p_accion=data.get('accion'),
+        p_campo=data.get('campo_modificado'),
+        p_anterior=data.get('valor_anterior'),
+        p_nuevo=data.get('valor_nuevo'),
+        p_motivo=data.get('motivo')
+    )
+    resultado = guardar(h)
+    return jsonify({"success": resultado})
+
+# 4. api_actualizarentidad [POST]
+@app.route('/api/actualizarentidad', methods=['POST'])
+def api_actualizarentidad():
+    data = request.json
+    p_id = data.get('id')
+    h = clsHistorial(
+        p_accion=data.get('accion'),
+        p_campo=data.get('campo_modificado'),
+        p_anterior=data.get('valor_anterior'),
+        p_nuevo=data.get('valor_nuevo'),
+        p_motivo=data.get('motivo')
+    )
+    resultado = actualizar(p_id, h) # Sin el prefijo
+    return jsonify({"success": resultado})
+
+# 5. api_eliminarentidad [POST]
+@app.route('/api/eliminarentidad', methods=['POST'])
+def api_eliminarentidad():
+    data = request.json
+    resultado = eliminar(data.get('id')) # Sin el prefijo
+    return jsonify({"success": resultado})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
