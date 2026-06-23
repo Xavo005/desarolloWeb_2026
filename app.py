@@ -6,6 +6,7 @@ import numpy as np
 from datetime import datetime
 from dotenv import load_dotenv
 from bd import obtenerconexion
+from flask_jwt import JWT, jwt_required, current_identity
 
 #vision
 try:
@@ -60,8 +61,40 @@ from usuarioAD import (
 )
 from chatbotAD import procesar_mensaje
 
+def authenticate(username, password):
+    try:
+        conn = obtenerconexion()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, codigo_empleado, nombre, rol, password FROM usuarios WHERE codigo_empleado=%s AND activo=1",
+                    (username,)
+                )
+                row = cur.fetchone()
+        if row and row.get('password') == password:
+            return row
+    except Exception:
+        return None
+
+def identity(payload):
+    user_id = payload['identity']
+    try:
+        conn = obtenerconexion()
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, codigo_empleado, nombre, rol FROM usuarios WHERE id=%s AND activo=1",
+                    (user_id,)
+                )
+                return cur.fetchone()
+    except Exception:
+        return None
+
+
 app = Flask(__name__)
-app.secret_key = 'tottus_sgi_secret_2026'
+app.secret_key = 'botica_sgi_secret_2026'
+
+jwt = JWT(app, authenticate, identity)
 
 # ==============================================================================
 # FUNCIONES AUXILIARES CENTRALIZADAS
