@@ -455,72 +455,36 @@ def eliminar_producto_ruta(prod_id):
 
 
 # ==============================================================================
-# API - PRODUCTO Xavo
+# API - PRODUCTOS - Xavier Ruiz Guevara
 # ==============================================================================
-@app.route('/api_guardarproducto', methods=['POST'])
-def api_guardarproducto():
+@app.route("/api_listar_productos")
+def api_listar_productos():
     try:
-        d = request.json
-        obj = clsProducto(
-            p_id=None, p_sku=d['sku'], p_nombre=d['nombre'], p_categoria=d.get('categoria', ''),
-            p_stock_total=d.get('stock_total', 0), p_precio_unitario=d.get('precio_unitario', 0),
-            p_venta_dia=d.get('venta_dia', 0), p_ubicacion_gondola=d.get('ubicacion_gondola', '')
+        resultado = leer_productos()
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({"code": -1, "data": {}, "message": repr(e)})
+
+
+@app.route("/api_guardar_producto", methods=['POST'])
+def api_guardar_producto():
+    try:
+        objProducto = clsProducto(
+            None,
+            request.json['sku'],
+            request.json['nombre'],
+            request.json['categoria'],
+            request.json['stock_total'],
+            request.json['precio_unitario'],
+            request.json['venta_dia'],
+            request.json['ubicacion_gondola']
         )
-        if insertar_producto(obj):
-            return jsonify({"code": 1, "message": "Producto registrado correctamente"})
-        return jsonify({"code": 0, "message": "No se pudo registrar el producto"})
+        if insertar_producto(objProducto):
+            return jsonify({"code": 1, "message": "Producto insertado correctamente"})
+        return jsonify({"code": 0, "data": {}, "message": "Error al insertar producto"})
     except Exception as e:
-        return jsonify({"code": -1, "message": str(e)})
+        return jsonify({"code": -1, "data": {}, "message": repr(e)})
 
-@app.route('/api_actualizarproducto', methods=['POST'])
-def api_actualizarproducto():
-    try:
-        d = request.json
-        obj = clsProducto(
-            p_id=d['id'], p_sku=d['sku'], p_nombre=d['nombre'], p_categoria=d.get('categoria', ''),
-            p_stock_total=d.get('stock_total', 0), p_precio_unitario=d.get('precio_unitario', 0),
-            p_venta_dia=d.get('venta_dia', 0), p_ubicacion_gondola=d.get('ubicacion_gondola', '')
-        )
-        if actualizar_producto(obj):
-            return jsonify({"code": 1, "message": "Producto actualizado correctamente"})
-        return jsonify({"code": 0, "message": "No se pudo actualizar el producto"})
-    except Exception as e:
-        return jsonify({"code": -1, "message": str(e)})
-
-@app.route('/api_eliminarproducto', methods=['POST'])
-def api_eliminarproducto():
-    try:
-        id_producto = request.json.get('id')
-        if eliminar_producto(id_producto):
-            return jsonify({"code": 1, "message": "Producto eliminado correctamente"})
-        return jsonify({"code": 0, "message": "No se pudo eliminar el producto"})
-    except Exception as e:
-        return jsonify({"code": -1, "message": str(e)})
-
-@app.route('/api_leerproductoxid', methods=['GET', 'POST'])
-def api_leerproductoxid():
-    try:
-        if request.method == 'POST':
-            id_producto = request.json.get('id')
-        else:
-            id_producto = request.args.get('id')
-            
-        producto = leer_producto_por_id(id_producto)
-        if producto:
-            return jsonify({"code": 1, "message": "Producto encontrado", "data": producto})
-        return jsonify({"code": 0, "message": "Producto no encontrado"})
-    except Exception as e:
-        return jsonify({"code": -1, "message": str(e)})
-
-@app.route('/api_leerproductos', methods=['GET'])
-def api_leerproductos():
-    try:
-        productos = leer_productos()
-        if productos:
-            return jsonify({"code": 1, "message": "Listado obtenido", "data": productos})
-        return jsonify({"code": 0, "message": "No hay productos registrados"})
-    except Exception as e:
-        return jsonify({"code": -1, "message": str(e)})
 
 # ==============================================================================
 # API - ESCANER 
