@@ -2,10 +2,9 @@ from datetime import datetime
 from bd import obtenerconexion
 
 class clsAlerta:
-    def __init__(self, id=None, producto_id=None, producto=None, sku=None,
-                 categoria=None, unidades=None, venta_dia=None, 
+    def __init__(self, producto_id=None, producto=None, sku=None,
+                 categoria=None, unidades=None, venta_dia=None,
                  estado_transf=None, stock_minimo=None):
-        self.id = id
         self.producto_id = producto_id
         self.producto = producto
         self.sku = sku
@@ -89,11 +88,47 @@ def calcular_prediccion_dinamica(conn, producto_id, stock_actual, static_venta_d
             'usando_historial': False
         }
 
+def calcular_nivel_estatico(stock_actual, stock_minimo):
+    if stock_actual <= 0:
+        return 'critico'
+    elif stock_actual <= stock_minimo:
+        return 'urgente'
+    else:
+        return 'ok'
+
+def obtener_alertas_activas():
+    try:
+        conn = obtenerconexion()
+        alertas = []
+        if conn:
+            with conn:
+                with conn.cursor() as cursor:
+                    sql = """
+                        SELECT p.id AS producto_id, p.sku, p.nombre AS producto,
+                               p.categoria, p.stock_total AS unidades,
+                               p.stock_minimo, p.venta_dia, p.ubicacion_gondola,
+                               COALESCE(a.id, 0) AS alerta_id,
+                               COALESCE(a.estado_transf, 'Sin transferencia activa') AS estado_transf
+                        FROM productos p
+                        LEFT JOIN alertas_quiebre a ON a.producto_id = p.id AND a.activo=1
+                        WHERE p.activo = 1 AND p.stock_total <= p.stock_minimo
+                        ORDER BY p.stock_total ASC
+                    """
+                    cursor.execute(sql)
+                    filas = cursor.fetchall()
+                    for fila in filas:
+                        item = dict(fila)
+                        item['id'] = item['producto_id'] # Alias para compatibilidad con template
+                        item['nivel'] = calcular_nivel_estatico(
+                            item['unidades'], item['stock_minimo']
+                        )
+                        alertas.append(item)
+        return alertas
+    except Exception as e:
+        print(f"Error en obtener_alertas_activas: {repr(e)}")
+        return []
+
 def obtener_alertas_dinamicas():
-    """
-    Calcula alertas con prediccion dinamica basada en historial.
-    Sin SQL en el controlador (regla 3 capas).
-    """
     try:
         conn = obtenerconexion()
         if not conn:
@@ -101,14 +136,16 @@ def obtener_alertas_dinamicas():
             
         with conn:
             with conn.cursor() as cursor:
-                cursor.execute("""
-                    SELECT a.id, a.producto_id, a.producto, a.sku, a.categoria,
-                           p.stock_total AS unidades, p.venta_dia, a.estado_transf,
-                           a.stock_minimo
-                    FROM alertas_quiebre a
-                    JOIN productos p ON a.producto_id = p.id
-                    WHERE a.activo = 1
-                """)
+                sql = """
+                    SELECT p.id AS producto_id, p.sku, p.nombre AS producto,
+                           p.categoria, p.stock_total AS unidades,
+                           p.stock_minimo, p.venta_dia,
+                           COALESCE(a.estado_transf, 'Sin transferencia activa') AS estado_transf
+                    FROM productos p
+                    LEFT JOIN alertas_quiebre a ON a.producto_id = p.id AND a.activo=1
+                    WHERE p.activo = 1 AND p.stock_total <= p.stock_minimo
+                """
+                cursor.execute(sql)
                 alertas_raw = cursor.fetchall()
 
                 lista_alertas = []
@@ -125,7 +162,7 @@ def obtener_alertas_dinamicas():
                     )
 
                     item = {
-                        'id': a['id'],
+                        'id': a['producto_id'], # Alias para compatibilidad con template
                         'producto_id': a['producto_id'],
                         'producto': a['producto'],
                         'sku': a['sku'],
@@ -157,50 +194,6 @@ def obtener_alertas_dinamicas():
         print(f"Error en obtener_alertas_dinamicas: {repr(e)}")
         return [], {'critico': 0, 'urgente': 0, 'ok': 0}
 
-def calcular_nivel_estatico(stock_actual, stock_minimo):
-    """
-    Nivel para modo estático basado únicamente en stock_minimo.
-    - critico: stock_actual <= 0
-    - urgente: 0 < stock_actual <= stock_minimo
-    - ok:      stock_actual > stock_minimo
-    No existe 'advertencia' en modo estático.
-    """
-    if stock_actual <= 0:
-        return 'critico'
-    elif stock_actual <= stock_minimo:
-        return 'urgente'
-    else:
-        return 'ok'
-
-def obtener_alertas_activas():
-    try:
-        conn = obtenerconexion()
-        alertas = []
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    sql  = " SELECT a.id, a.producto_id, a.sku, a.producto, "
-                    sql += "        a.categoria, a.stock_minimo, a.venta_dia, "
-                    sql += "        a.horas_restantes, a.estado_transf, "
-                    sql += "        p.stock_total AS unidades, "
-                    sql += "        p.stock_total, p.ubicacion_gondola "
-                    sql += "   FROM alertas_quiebre a "
-                    sql += "   JOIN productos p ON a.producto_id = p.id "
-                    sql += "  WHERE a.activo = 1 "
-                    sql += "  ORDER BY p.stock_total ASC "
-                    cursor.execute(sql)
-                    filas = cursor.fetchall()
-                    for fila in filas:
-                        item = dict(fila)
-                        item['nivel'] = calcular_nivel_estatico(
-                            item['unidades'], item['stock_minimo']
-                        )
-                        alertas.append(item)
-        return alertas
-    except Exception as e:
-        print(repr(e))
-        return []
-
 def obtener_totales_alertas():
     try:
         conn = obtenerconexion()
@@ -208,12 +201,8 @@ def obtener_totales_alertas():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("""
-                        SELECT p.stock_total AS unidades, a.stock_minimo
-                        FROM alertas_quiebre a
-                        JOIN productos p ON a.producto_id = p.id
-                        WHERE a.activo = 1
-                    """)
+                    sql = "SELECT stock_total AS unidades, stock_minimo FROM productos WHERE activo=1"
+                    cursor.execute(sql)
                     for fila in cursor.fetchall():
                         nivel = calcular_nivel_estatico(
                             fila['unidades'], fila['stock_minimo']
@@ -221,21 +210,30 @@ def obtener_totales_alertas():
                         totales[nivel] = totales.get(nivel, 0) + 1
         return totales
     except Exception as e:
-        print(repr(e))
+        print(f"Error en obtener_totales_alertas: {repr(e)}")
         return {'critico': 0, 'urgente': 0, 'ok': 0}
 
-def eliminar_alerta(p_alerta_id):
+def contar_alertas():
+    try:
+        totales = obtener_totales_alertas()
+        return totales['critico'] + totales['urgente']
+    except Exception as e:
+        print(f"Error en contar_alertas: {repr(e)}")
+        return 0
+
+def eliminar_alerta(p_producto_id):
     try:
         conn = obtenerconexion()
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("UPDATE alertas_quiebre SET activo=0 WHERE id=%s", (p_alerta_id,))
+                    sql = "DELETE FROM alertas_quiebre WHERE producto_id = %s"
+                    cursor.execute(sql, (p_producto_id,))
                 conn.commit()
             return True
         return False
     except Exception as e:
-        print(repr(e))
+        print(f"Error en eliminar_alerta: {repr(e)}")
         return False
 
 def actualizar_alerta_sincronizada(p_alerta, p_motivo='Ajuste desde edicion de alerta'):
@@ -244,45 +242,45 @@ def actualizar_alerta_sincronizada(p_alerta, p_motivo='Ajuste desde edicion de a
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    sql_info = """
-                        SELECT a.producto_id, p.stock_total 
-                        FROM alertas_quiebre a
-                        JOIN productos p ON a.producto_id = p.id
-                        WHERE a.id = %s AND a.activo = 1
-                    """
-                    cursor.execute(sql_info, (p_alerta.id,))
+                    # 1. Leer stock actual para el historial
+                    sql_info = "SELECT stock_total FROM productos WHERE id = %s"
+                    cursor.execute(sql_info, (p_alerta.producto_id,))
                     row = cursor.fetchone()
                     if not row:
                         return False
-                    
-                    producto_id = row['producto_id']
+
                     stock_anterior = row['stock_total']
 
-                    sql_alerta = """
-                        UPDATE alertas_quiebre
-                           SET unidades = %s, venta_dia = %s, estado_transf = %s, updated_at = NOW()
-                         WHERE id = %s
-                    """
-                    cursor.execute(sql_alerta, (p_alerta.unidades, p_alerta.venta_dia, p_alerta.estado_transf, p_alerta.id))
-
-                    if p_alerta.stock_minimo is not None:
-                        cursor.execute("""
-                            UPDATE alertas_quiebre
-                               SET stock_minimo = %s
-                             WHERE id = %s
-                        """, (p_alerta.stock_minimo, p_alerta.id))
-
-                    sql_producto = """
+                    # 2. UPDATE productos — sincroniza stock_total, venta_dia y stock_minimo
+                    #    en una sola sentencia para evitar múltiples round-trips y
+                    #    asegurar que venta_dia (enviado desde el form de alertas) se persiste.
+                    sql_prod = """
                         UPDATE productos
-                           SET stock_total = %s
+                           SET stock_total  = %s,
+                               venta_dia    = %s,
+                               stock_minimo = COALESCE(%s, stock_minimo)
                          WHERE id = %s
                     """
-                    cursor.execute(sql_producto, (p_alerta.unidades, producto_id))
+                    cursor.execute(sql_prod, (
+                        p_alerta.unidades,
+                        p_alerta.venta_dia,
+                        p_alerta.stock_minimo,
+                        p_alerta.producto_id
+                    ))
 
-                    # Import local para evitar circularidad
+                    # 3. UPSERT alertas_quiebre
+                    sql_upsert = """
+                        INSERT INTO alertas_quiebre (producto_id, estado_transf)
+                        VALUES (%s, %s)
+                        ON DUPLICATE KEY UPDATE
+                        estado_transf=VALUES(estado_transf), updated_at=NOW(), activo=1
+                    """
+                    cursor.execute(sql_upsert, (p_alerta.producto_id, p_alerta.estado_transf))
+
+                    # 4. Historial
                     from productosAD import _registrar_historial
                     _registrar_historial(
-                        cursor, producto_id, 'UPDATE',
+                        cursor, p_alerta.producto_id, 'UPDATE',
                         campo='stock_total_alerta',
                         anterior=stock_anterior,
                         nuevo=p_alerta.unidades,
@@ -292,23 +290,81 @@ def actualizar_alerta_sincronizada(p_alerta, p_motivo='Ajuste desde edicion de a
             return True
         return False
     except Exception as e:
-        print("Error en actualizar_alerta_sincronizada:", repr(e))
+        print(f"Error en actualizar_alerta_sincronizada: {repr(e)}")
         return False
 
-def contar_alertas():
+# ==============================================================================
+# LECTURA POR ID — Alerta (Fix P1: elimina SQL directo en app.py)
+# ==============================================================================
+def obtener_alerta_xID(p_alerta_id):
+    """
+    Retorna una alerta por su id propio (alertas_quiebre.id),
+    enriquecida con los datos del producto (sku, stock, venta_dia, etc.).
+    """
     try:
         conn = obtenerconexion()
-        if conn:
-            with conn:
-                with conn.cursor() as cursor:
-                    sql  = " SELECT COUNT(*) AS n "
-                    sql += "   FROM alertas_quiebre "
-                    sql += "  WHERE activo = 1 "
-                    sql += "    AND nivel IN ('critico', 'urgente') "
-                    cursor.execute(sql)
-                    row = cursor.fetchone()
-                    return row['n'] if row else 0
-        return 0
+        if not conn:
+            return None
+        with conn:
+            with conn.cursor() as cursor:
+                sql = """
+                    SELECT a.id          AS alerta_id,
+                           a.producto_id,
+                           a.estado_transf,
+                           a.activo,
+                           a.updated_at,
+                           p.sku,
+                           p.nombre      AS producto,
+                           p.categoria,
+                           p.stock_total AS unidades,
+                           p.venta_dia,
+                           p.stock_minimo
+                    FROM alertas_quiebre a
+                    JOIN productos p ON p.id = a.producto_id
+                    WHERE a.id = %s
+                """
+                cursor.execute(sql, (p_alerta_id,))
+                return cursor.fetchone()
     except Exception as e:
-        print(repr(e))
-        return 0
+        print(f"Error en obtener_alerta_xID: {repr(e)}")
+        return None
+
+
+# ==============================================================================
+# CREAR O REACTIVAR ALERTA (Fix P3: elimina SQL directo en app.py)
+# ==============================================================================
+def crear_o_reactivar_alerta(p_producto_id, p_estado_transf='Sin transferencia activa'):
+    """
+    UPSERT en alertas_quiebre.
+    - Si no existe alerta para el producto, la crea (activo=1).
+    - Si ya existe, la reactiva y actualiza estado_transf.
+    Los datos de stock/venta/stock_minimo viven en 'productos', no aquí.
+    Retorna True si tuvo éxito, False en caso contrario.
+    """
+    try:
+        conn = obtenerconexion()
+        if not conn:
+            return False
+        with conn:
+            with conn.cursor() as cursor:
+                # Verificar que el producto existe y está activo
+                cursor.execute(
+                    "SELECT id FROM productos WHERE id = %s AND activo = 1",
+                    (p_producto_id,)
+                )
+                if not cursor.fetchone():
+                    return False
+                cursor.execute(
+                    """INSERT INTO alertas_quiebre (producto_id, estado_transf, activo)
+                       VALUES (%s, %s, 1)
+                       ON DUPLICATE KEY UPDATE
+                           estado_transf = VALUES(estado_transf),
+                           activo        = 1,
+                           updated_at    = NOW()""",
+                    (p_producto_id, p_estado_transf)
+                )
+            conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error en crear_o_reactivar_alerta: {repr(e)}")
+        return False

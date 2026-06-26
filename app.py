@@ -29,7 +29,7 @@ from flask import (
 )
 
 from productosAD import (
-    registrar_historial,
+    registrar_historial, leer_historial,          # leer_historial: Fix P7
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
     insertar_producto, actualizar_producto, eliminar_producto,
@@ -42,7 +42,8 @@ from conteoAD import registrar_conteo, listar_conteos_reales
 from alertaAD import (
     clsAlerta, obtener_alertas_activas, obtener_totales_alertas,
     eliminar_alerta, actualizar_alerta_sincronizada,
-    obtener_alertas_dinamicas, contar_alertas
+    obtener_alertas_dinamicas, contar_alertas,
+    obtener_alerta_xID, crear_o_reactivar_alerta  # Fix P1 + P3
 )
 from segmentacionAD import (
     clsSegmentacion, obtener_segmentaciones, obtener_segmentacion_xID,
@@ -241,7 +242,7 @@ def alertas():
 @app.route('/alertas/actualizar', methods=['POST'])
 def actualizar_alerta_tradicional():
     try:
-        alerta_id     = int(request.form['id'])
+        producto_id   = int(request.form['producto_id'])
         unidades      = int(request.form['unidades'])
         venta_dia     = float(request.form.get('venta_dia', 0) or 0)
         estado_transf = request.form['estado_transf'].strip()
@@ -254,7 +255,7 @@ def actualizar_alerta_tradicional():
                 stock_minimo = None
 
         obj_alerta = clsAlerta(
-            id=alerta_id,
+            producto_id=producto_id,
             unidades=unidades,
             venta_dia=venta_dia,
             estado_transf=estado_transf,
@@ -274,17 +275,17 @@ def actualizar_alerta_tradicional():
         print("Error en /alertas/actualizar:", repr(e))
         return render_template('error_500.html'), 500
 
-@app.route('/eliminar_alerta/<int:alerta_id>')
-def eliminar_alerta_ruta(alerta_id):
+@app.route('/eliminar_alerta/<int:producto_id>')
+def eliminar_alerta_ruta(producto_id):
     try:
-        if eliminar_alerta(alerta_id):
+        if eliminar_alerta(producto_id):
             datos = _obtener_datos_alertas()
             return render_template('alertas.html', **datos)
         else:
             return render_template('error_500.html'), 500
     except Exception as e:
         return render_template('error_500.html'), 500
-    
+     
 # ==============================================================================
 # API - ALERTAS - Gianella Torres
 # ==============================================================================
@@ -398,12 +399,12 @@ def guardar_producto():
             stock  = int(request.form.get('stock_total', 0))
             precio = float(request.form.get('precio_unitario', 0))
             venta  = float(request.form.get('venta_dia', 0))
+            stock_minimo = int(request.form.get('stock_minimo', 0) or 0)
         except (ValueError, TypeError):
             return mostrar_error("Valores numericos invalidos.")
 
-        if stock < 0 or precio < 0 or venta < 0:
-            return mostrar_error("El stock, precio y venta diaria no pueden ser negativos.")
-
+        if stock < 0 or precio < 0 or venta < 0 or stock_minimo < 0:
+            return mostrar_error("El stock, precio, venta diaria y stock minimo no pueden ser negativos.")
         obj = clsProducto(
             p_id=None,
             p_sku=sku,
@@ -412,6 +413,7 @@ def guardar_producto():
             p_stock_total=stock,
             p_precio_unitario=precio,
             p_venta_dia=venta,
+            p_stock_minimo=stock_minimo,
             p_ubicacion_gondola=ubicacion
         )
 
@@ -439,12 +441,13 @@ def actualizar_producto_ruta():
             stock  = int(request.form.get('stock_total', 0))
             precio = float(request.form.get('precio_unitario', 0))
             venta  = float(request.form.get('venta_dia', 0))
+            stock_minimo = int(request.form.get('stock_minimo', 0) or 0)
         except ValueError:
             return mostrar_error("Valores numericos invalidos.")
 
-        if stock < 0 or precio < 0 or venta < 0:
-            return mostrar_error("El stock, precio y venta diaria no pueden ser negativos.")
-
+        if stock < 0 or precio < 0 or venta < 0 or stock_minimo < 0:
+            return mostrar_error("El stock, precio, venta diaria y stock minimo no pueden ser negativos.")
+        
         obj = clsProducto(
             p_id=prod_id,
             p_sku=request.form.get('sku', '').strip().upper(),
@@ -453,6 +456,7 @@ def actualizar_producto_ruta():
             p_stock_total=stock,
             p_precio_unitario=precio,
             p_venta_dia=venta,
+            p_stock_minimo=stock_minimo,
             p_ubicacion_gondola=request.form.get('ubicacion_gondola', '')
         )
 
@@ -510,6 +514,7 @@ def api_guardar_producto():
             request.json['stock_total'],
             request.json['precio_unitario'],
             request.json['venta_dia'],
+            request.json['stock_minimo'],
             request.json['ubicacion_gondola']
         )
         if insertar_producto(objProducto):
@@ -648,7 +653,7 @@ def actualizar_segmentacion_ruta():
         return mostrar_error("Error interno al actualizar la segmentacion.", 500)
 
 
-@app.route('/eliminar_segmentacion/<int:seg_id>')
+@app.route('/eliminar_segmentacion/<int:seg_id>', methods=['POST'])  # Fix P8: solo POST
 def eliminar_segmentacion_ruta(seg_id):
     """
     Elimina una segmentacion. La segmentacion en si no tiene dependencias
@@ -667,7 +672,7 @@ def eliminar_segmentacion_ruta(seg_id):
         return mostrar_error("Error interno al eliminar la segmentacion.", 500)
 
 
-@app.route('/toggle_segmentacion/<int:seg_id>')
+@app.route('/toggle_segmentacion/<int:seg_id>', methods=['POST'])  # Fix P9: solo POST
 def toggle_segmentacion_ruta(seg_id):
     try:
         row = obtener_segmentacion_xID(seg_id)
@@ -710,10 +715,18 @@ def api_guardar_segmentacion():
             motivo=request.json['motivo']
         )
 
+        # Fix P10: validar stock antes de insertar (igual que la ruta web)
+        error = validar_stock_disponible(
+            obj.producto_id,
+            obj.stock_cliente_final + obj.stock_revendedor
+        )
+        if error:
+            return jsonify({"code": 0, "message": error})
+
         if insertar_segmentacion(obj):
             return jsonify({"code": 1, "message": "Segmentacion registrada correctamente"})
 
-        return jsonify({"code": 0, "message": "No se pudo registrar. Verifique el stock disponible."})
+        return jsonify({"code": 0, "message": "No se pudo registrar. Verifique datos enviados."})
 
     except Exception as e:
         return jsonify({"code": -1, "message": repr(e)})
@@ -795,22 +808,6 @@ def api_guardar_conteo():
     except Exception as e:
         # Si aquí sale el error, es que algo en el JSON de arriba falló (ej: falta un campo)
         return jsonify({"code": -1, "message": str(e)})
-
-
-@app.route('/listar_alertas')
-def api_get_alertas():
-    """
-    Muestra la lista de alertas activas.
-    Delega a obtener_alertas_activas() de tottusAD (Regla 3 capas).
-    Sin SELECT * ni acceso directo a BD desde el controlador.
-    """
-    try:
-        resultado = obtener_alertas_activas()
-        return render_template('lista_alertas.html', datos=resultado)
-    except Exception as e:
-        return mostrar_error("Error al cargar la lista de alertas.", 500)
-
-
 
 # ==============================================================================
 # HISTORIAL -DIEGO CALDERON
@@ -1281,7 +1278,8 @@ def api_guardar_producto_jwt():
         obj = clsProducto(
             None, d['sku'], d['nombre'], d.get('categoria', ''),
             d.get('stock_total', 0), d.get('precio_unitario', 0),
-            d.get('venta_dia', 0), d.get('ubicacion_gondola', '')
+            d.get('venta_dia', 0), d.get('stock_minimo', 0),
+            d.get('ubicacion_gondola', '')
         )
         if insertar_producto(obj):
             return jsonify({"code": 1, "message": "Producto registrado"})
@@ -1298,7 +1296,8 @@ def api_actualizar_producto():
         obj = clsProducto(
             d['id'], d['sku'], d['nombre'], d.get('categoria', ''),
             d.get('stock_total', 0), d.get('precio_unitario', 0),
-            d.get('venta_dia', 0), d.get('ubicacion_gondola', '')
+            d.get('venta_dia', 0), d.get('stock_minimo', 0),
+            d.get('ubicacion_gondola', '')
         )
         if actualizar_producto(obj):
             return jsonify({"code": 1, "message": "Producto actualizado"})
@@ -1351,30 +1350,20 @@ def api_leer_productos_jwt():
 @app.route('/api_guardar_alerta', methods=['POST'])
 @jwt_required()
 def api_guardar_alerta():
+    """
+    Fix P3: delega a crear_o_reactivar_alerta() en alertaAD (sin SQL directo).
+    Crea o reactiva una alerta para un producto.
+    Body JSON: { producto_id, estado_transf (opcional) }
+    """
     try:
         d = request.json
-        obj = clsAlerta(
-            producto_id=d['producto_id'],
-            sku=d.get('sku', ''),
-            producto=d.get('producto', ''),
-            categoria=d.get('categoria', ''),
-            unidades=d.get('unidades', 0),
-            venta_dia=d.get('venta_dia', 0),
-            estado_transf=d.get('estado_transf', 'pendiente'),
-            stock_minimo=d.get('stock_minimo', 5)
+        exito = crear_o_reactivar_alerta(
+            p_producto_id=d['producto_id'],
+            p_estado_transf=d.get('estado_transf', 'Sin transferencia activa')
         )
-        conn = obtenerconexion()
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    """INSERT INTO alertas_quiebre
-                       (producto_id, sku, producto, categoria, venta_dia, stock_minimo, estado_transf, activo)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,1)""",
-                    (obj.producto_id, obj.sku, obj.producto, obj.categoria,
-                     obj.venta_dia, obj.stock_minimo, obj.estado_transf)
-                )
-            conn.commit()
-        return jsonify({"code": 1, "message": "Alerta registrada"})
+        if exito:
+            return jsonify({"code": 1, "message": "Alerta registrada"})
+        return jsonify({"code": 0, "message": "Producto no encontrado o inactivo"})
     except Exception as e:
         return jsonify({"code": -1, "message": repr(e)})
 
@@ -1382,13 +1371,18 @@ def api_guardar_alerta():
 @app.route('/api_actualizar_alerta', methods=['POST'])
 @jwt_required()
 def api_actualizar_alerta():
+    """
+    Actualiza stock_total, venta_dia y stock_minimo en 'productos',
+    y el estado_transf en 'alertas_quiebre'.
+    Body JSON: { producto_id, unidades, venta_dia, estado_transf, stock_minimo (opcional) }
+    """
     try:
         d = request.json
         obj = clsAlerta(
-            id=d['id'],
+            producto_id=d['producto_id'],
             unidades=d.get('unidades', 0),
             venta_dia=d.get('venta_dia', 0),
-            estado_transf=d.get('estado_transf', 'pendiente'),
+            estado_transf=d.get('estado_transf', 'Sin transferencia activa'),
             stock_minimo=d.get('stock_minimo')
         )
         if actualizar_alerta_sincronizada(obj):
@@ -1401,9 +1395,13 @@ def api_actualizar_alerta():
 @app.route('/api_eliminar_alerta', methods=['POST'])
 @jwt_required()
 def api_eliminar_alerta():
+    """
+    Fix P2: eliminar_alerta() filtra por producto_id, no por id de la alerta.
+    Body JSON: { producto_id }
+    """
     try:
-        alerta_id = request.json.get('id')
-        if eliminar_alerta(int(alerta_id)):
+        producto_id = request.json.get('producto_id')
+        if eliminar_alerta(int(producto_id)):
             return jsonify({"code": 1, "message": "Alerta eliminada"})
         return jsonify({"code": 0, "message": "No encontrada o error"})
     except Exception as e:
@@ -1413,14 +1411,17 @@ def api_eliminar_alerta():
 @app.route('/api_leer_alertaxid', methods=['GET', 'POST'])
 @jwt_required()
 def api_leer_alertaxid():
+    """
+    Fix P1: delega a obtener_alerta_xID() en alertaAD (sin SQL directo).
+    Devuelve la alerta enriquecida con datos del producto.
+    Param: id (id de alertas_quiebre)
+    """
     try:
         alerta_id = int((request.json or request.args).get('id'))
-        conn = obtenerconexion()
-        with conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM alertas_quiebre WHERE id=%s", (alerta_id,))
-                row = cur.fetchone()
+        row = obtener_alerta_xID(alerta_id)
         if row:
+            if isinstance(row.get('updated_at'), datetime):
+                row['updated_at'] = row['updated_at'].strftime('%d/%m/%Y %H:%M')
             return jsonify({"code": 1, "data": row})
         return jsonify({"code": 0, "message": "No encontrada"})
     except Exception as e:

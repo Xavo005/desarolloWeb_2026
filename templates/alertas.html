@@ -12,11 +12,13 @@
   <!-- Stats -->
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px">
     <div class="card text-center" style="border-top:4px solid var(--danger)">
-      <div id="stat-critico" style="font-size:32px;font-weight:700;color:var(--danger)">{{ totales.critico | default(0) }}</div>
+      <div id="stat-critico" style="font-size:32px;font-weight:700;color:var(--danger)">{{ totales.critico | default(0)
+        }}</div>
       <div class="text-muted text-sm">Quiebres</div>
     </div>
     <div class="card text-center" style="border-top:4px solid var(--warning)">
-      <div id="stat-urgente" style="font-size:32px;font-weight:700;color:var(--warning)">{{ totales.urgente | default(0) }}</div>
+      <div id="stat-urgente" style="font-size:32px;font-weight:700;color:var(--warning)">{{ totales.urgente | default(0)
+        }}</div>
       <div class="text-muted text-sm">Urgentes</div>
     </div>
     <div class="card text-center" style="border-top:4px solid var(--primary)">
@@ -29,10 +31,12 @@
   <div class="card mb-4" style="padding:12px 16px;display:flex;align-items:center;justify-content:flex-start;gap:12px">
     <div style="font-size:13px;font-weight:600;color:var(--text-muted)">Modo de cálculo:</div>
     <div style="display:flex;background:#F5F5F5;border-radius:20px;padding:4px;gap:4px">
-      <a href="/alertas?modo=estatico" id="btn-modo-estatico" class="btn-toggle {% if modo != 'dinamico' %}active{% endif %}">
+      <a href="/alertas?modo=estatico" id="btn-modo-estatico"
+        class="btn-toggle {% if modo != 'dinamico' %}active{% endif %}">
         Estático (BD)
       </a>
-      <a href="/alertas?modo=dinamico" id="btn-modo-dinamico" class="btn-toggle {% if modo == 'dinamico' %}active{% endif %}">
+      <a href="/alertas?modo=dinamico" id="btn-modo-dinamico"
+        class="btn-toggle {% if modo == 'dinamico' %}active{% endif %}">
         Dinámico (Historial)
       </a>
     </div>
@@ -43,7 +47,8 @@
     <div style="font-size:16px;font-weight:600;display:flex;align-items:center;gap:6px">
       <i class="fa-solid fa-triangle-exclamation" style="color:var(--warning)"></i>
       <span>Alertas de Quiebre</span>
-      <span id="lbl-tipo-calculo" class="badge {% if modo == 'dinamico' %}badge-green{% else %}badge-gray{% endif %}" style="font-size:10px">
+      <span id="lbl-tipo-calculo" class="badge {% if modo == 'dinamico' %}badge-green{% else %}badge-gray{% endif %}"
+        style="font-size:10px">
         {{ 'Predicción Dinámica' if modo == 'dinamico' else 'Estático' }}
       </span>
     </div>
@@ -53,88 +58,95 @@
   <!-- Grid de alertas -->
   <div id="alertas-grid" style="display:grid;grid-template-columns:1fr;gap:16px">
     {% if alertas %}
-      {% for a in alertas %}
-      <div class="alert-card {{ a.nivel }}" id="alerta-{{ a.id }}">
-        
-        <div class="alert-card-header" style="display:flex;align-items:center;gap:10px">
-          <div class="alert-box-icon" style="width:44px;height:44px;border-radius:10px;background:{% if a.nivel=='critico' %}var(--danger-light){% elif a.nivel=='urgente' %}var(--warning-light){% else %}var(--primary-light){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0">
-            <i class="fa-solid fa-box" style="color:{% if a.nivel=='critico' %}var(--danger){% elif a.nivel=='urgente' %}var(--warning){% else %}var(--primary){% endif %}"></i>
-          </div>
-          <div class="alert-card-meta" style="flex:1">
-            <div class="alert-product-name">{{ a.producto }}</div>
-            <div class="alert-sku">SKU: {{ a.sku }}</div>
-          </div>
-          <span class="badge badge-gray">{{ a.categoria }}</span>
-        </div>
+    {% for a in alertas %}
+    <div class="alert-card {{ a.nivel }}" id="alerta-{{ a.id }}">
 
-        <!-- Métricas -->
-        <div class="alert-metrics">
-          {% if modo == 'dinamico' %}
-            <div class="alert-metric">
-              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">{{ a.unidades }}</div>
-              <div class="metric-lbl">unidades</div>
-            </div>
-            <div class="alert-metric">
-              <div class="metric-val">{{ a.venta_dia }}</div>
-              <div class="metric-lbl">unid./día</div>
-            </div>
-            <div class="alert-metric">
-              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
-                {{ a.horas_restantes | round(0) | int }}h
-              </div>
-              <div class="metric-lbl">restantes</div>
-            </div>
-          {% else %}
-            <div class="alert-metric">
-              <div class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
-                {{ a.unidades }}
-              </div>
-              <div class="metric-lbl">unidades actuales</div>
-            </div>
-            <div class="alert-metric">
-              <div class="metric-val">{{ a.stock_minimo }}</div>
-              <div class="metric-lbl">stock de seguridad</div>
-            </div>
-          {% endif %}
+      <div class="alert-card-header" style="display:flex;align-items:center;gap:10px">
+        <div class="alert-box-icon"
+          style="width:44px;height:44px;border-radius:10px;background:{% if a.nivel=='critico' %}var(--danger-light){% elif a.nivel=='urgente' %}var(--warning-light){% else %}var(--primary-light){% endif %};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="fa-solid fa-box"
+            style="color:{% if a.nivel=='critico' %}var(--danger){% elif a.nivel=='urgente' %}var(--warning){% else %}var(--primary){% endif %}"></i>
         </div>
+        <div class="alert-card-meta" style="flex:1">
+          <div class="alert-product-name">{{ a.producto }}</div>
+          <div class="alert-sku">SKU: {{ a.sku }}</div>
+        </div>
+        <span class="badge badge-gray">{{ a.categoria }}</span>
+      </div>
 
-        <!-- Progress Bar -->
+      <!-- Métricas -->
+      <div class="alert-metrics">
         {% if modo == 'dinamico' %}
-          {% set pct = [((a.unidades / (a.venta_dia * 5)) * 100) | int, 100] | min if a.venta_dia > 0 else 100 %}
+        <div class="alert-metric">
+          <div
+            class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
+            {{ a.unidades }}</div>
+          <div class="metric-lbl">unidades</div>
+        </div>
+        <div class="alert-metric">
+          <div class="metric-val">{{ a.venta_dia }}</div>
+          <div class="metric-lbl">unid./día</div>
+        </div>
+        <div class="alert-metric">
+          <div
+            class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
+            {{ a.horas_restantes | round(0) | int }}h
+          </div>
+          <div class="metric-lbl">restantes</div>
+        </div>
         {% else %}
-          {% set pct = [((a.unidades / a.stock_minimo) * 100) | int, 100] | min if a.stock_minimo > 0 else 100 %}
+        <div class="alert-metric">
+          <div
+            class="metric-val {% if a.nivel=='critico' %}red{% elif a.nivel=='urgente' %}amber{% else %}green{% endif %}">
+            {{ a.unidades }}
+          </div>
+          <div class="metric-lbl">unidades actuales</div>
+        </div>
+        <div class="alert-metric">
+          <div class="metric-val">{{ a.stock_minimo }}</div>
+          <div class="metric-lbl">stock de seguridad</div>
+        </div>
         {% endif %}
-        <div class="progress-bar">
-          <div class="progress-fill {% if a.nivel=='critico' %}fill-red{% elif a.nivel=='urgente' %}fill-amber{% else %}fill-green{% endif %}"
-               style="width:{{ pct }}%"></div>
-        </div>
-
-        <div class="text-xs text-muted mt-2">
-          <i class="fa-solid fa-truck"></i> {{ a.estado_transf }}
-        </div>
-
-        <!-- CRUD Acciones Tradicionales -->
-        <div class="alert-card-actions mt-3">
-          <a href="{{ url_for('segmentacion') }}" class="alert-detail-link">
-            Ver Detalle ›
-          </a>
-          <button class="btn-edit" onclick="abrirEditar({{ a.id }}, '{{ a.producto }}', {{ a.unidades }}, {{ a.venta_dia }}, '{{ a.estado_transf }}', {{ a.stock_minimo }})">
-            <i class="fa-solid fa-pen"></i> Editar
-          </button>
-          <a href="#" class="btn-delete btn-eliminar-alerta" style="text-decoration:none"
-             data-url="{{ url_for('eliminar_alerta_ruta', alerta_id=a.id) }}"
-             data-nombre="{{ a.producto }}">
-            <i class="fa-solid fa-trash"></i> Eliminar
-          </a>
-        </div>
       </div>
-      {% endfor %}
+
+      <!-- Progress Bar -->
+      {% if modo == 'dinamico' %}
+      {% set pct = [((a.unidades / (a.venta_dia * 5)) * 100) | int, 100] | min if a.venta_dia > 0 else 100 %}
+      {% else %}
+      {% set pct = [((a.unidades / a.stock_minimo) * 100) | int, 100] | min if a.stock_minimo > 0 else 100 %}
+      {% endif %}
+      <div class="progress-bar">
+        <div
+          class="progress-fill {% if a.nivel=='critico' %}fill-red{% elif a.nivel=='urgente' %}fill-amber{% else %}fill-green{% endif %}"
+          style="width:{{ pct }}%"></div>
+      </div>
+
+      <div class="text-xs text-muted mt-2">
+        <i class="fa-solid fa-truck"></i> {{ a.estado_transf }}
+      </div>
+
+      <!-- CRUD Acciones Tradicionales -->
+      <div class="alert-card-actions mt-3">
+        <a href="{{ url_for('segmentacion') }}" class="alert-detail-link">
+          Ver Detalle ›
+        </a>
+        <button class="btn-edit"
+          onclick="abrirEditar({{ a.producto_id }}, '{{ a.producto }}', {{ a.unidades }}, {{ a.venta_dia }}, '{{ a.estado_transf }}', {{ a.stock_minimo }})">
+          <i class="fa-solid fa-pen"></i> Editar
+        </button>
+        <a href="#" class="btn-delete btn-eliminar-alerta" style="text-decoration:none"
+          data-url="{{ url_for('eliminar_alerta_ruta', producto_id=a.producto_id) }}" data-nombre="{{ a.producto }}">
+          <i class="fa-solid fa-trash"></i> Eliminar
+        </a>
+      </div>
+    </div>
+    {% endfor %}
     {% else %}
-      <div id="empty-state" class="card text-center" style="padding:48px 24px">
-        <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--primary);margin-bottom:16px"></i>
-        <div style="font-size:18px;font-weight:600;margin-bottom:8px">¡Todo en orden!</div>
-        <div class="text-muted">No hay alertas de quiebre activas en este modo.</div>
-      </div>
+    <div id="empty-state" class="card text-center" style="padding:48px 24px">
+      <i class="fa-solid fa-circle-check" style="font-size:48px;color:var(--primary);margin-bottom:16px"></i>
+      <div style="font-size:18px;font-weight:600;margin-bottom:8px">¡Todo en orden!</div>
+      <div class="text-muted">No hay alertas de quiebre activas en este modo.</div>
+    </div>
     {% endif %}
   </div>
 </div>
@@ -143,22 +155,22 @@
 <div id="modal-edit-alerta" class="modal-overlay hidden">
   <div class="modal-card" style="text-align:left; max-width:400px;">
     <div class="modal-title" style="display:flex; align-items:center; gap:10px; margin-bottom:20px;">
-        <i class="fa-solid fa-pen-to-square" style="color:var(--primary)"></i>
-        <span id="edit-modal-title">Editar Alerta</span>
+      <i class="fa-solid fa-pen-to-square" style="color:var(--primary)"></i>
+      <span id="edit-modal-title">Editar Alerta</span>
     </div>
-    
+
     <form id="form-edit-alerta" method="POST" action="/alertas/actualizar">
-      <input type="hidden" id="edit-alerta-id" name="id">
+      <input type="hidden" id="edit-producto-id" name="producto_id">
       <input type="hidden" id="edit-modo" name="modo" value="{{ modo }}">
-      
-      
+
+
       <div class="form-group">
         <label for="edit-unidades">Unidades en góndola</label>
         <input type="number" id="edit-unidades" name="unidades" min="0" step="1">
         <small id="error-unidades" class="error-msg" style="display:none;"></small>
       </div>
-      
-      <div class="form-group" id="grupo-venta" {% if modo != 'dinamico' %}style="display:none"{% endif %}>
+
+      <div class="form-group" id="grupo-venta" {% if modo !='dinamico' %}style="display:none" {% endif %}>
         <label for="edit-venta">Velocidad de venta (unid./día)</label>
         <input type="number" id="edit-venta" name="venta_dia" min="0" step="0.1">
         <small id="info-venta-dinamica" style="display:none; color:var(--primary); font-size:10px; font-weight:600;">
@@ -167,17 +179,17 @@
         <small id="error-venta" class="error-msg" style="display:none;"></small>
       </div>
 
-      <div class="form-group" id="grupo-stock-minimo" {% if modo == 'dinamico' %}style="display:none"{% endif %}>
+      <div class="form-group" id="grupo-stock-minimo" {% if modo=='dinamico' %}style="display:none" {% endif %}>
         <label for="edit-stock-minimo">Stock mínimo de seguridad</label>
         <input type="number" id="edit-stock-minimo" name="stock_minimo" min="0" step="1">
         <small id="error-stock-minimo" class="error-msg" style="display:none;"></small>
       </div>
-      
+
       <div class="form-group">
         <label for="edit-estado">Estado de transferencia</label>
         <input type="text" id="edit-estado" name="estado_transf" placeholder="Ej: Pedido generado">
       </div>
-      
+
       <div class="modal-actions" style="margin-top:24px;">
         <button type="button" class="btn-secondary" onclick="cerrarEditar()">Cancelar</button>
         <button type="submit" id="btn-guardar-alerta" class="btn-primary">

@@ -1,4 +1,5 @@
 from bd import obtenerconexion
+from alertaAD import calcular_nivel_estatico
 
 def obtener_stats_dashboard():
     try:
@@ -7,8 +8,10 @@ def obtener_stats_dashboard():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
-                    cursor.execute("SELECT COUNT(*) AS n FROM alertas_quiebre WHERE activo=1 AND nivel='critico'")
+                    # Contamos criticas (stock = 0)
+                    cursor.execute("SELECT COUNT(*) AS n FROM productos WHERE activo=1 AND stock_total = 0")
                     stats['alertas_criticas'] = cursor.fetchone()['n']
+                    
                     cursor.execute("SELECT COUNT(*) AS n FROM productos WHERE activo=1")
                     stats['total_productos'] = cursor.fetchone()['n']
         return stats
@@ -23,25 +26,36 @@ def obtener_alertas_recientes():
         if conn:
             with conn:
                 with conn.cursor() as cursor:
+                    # Obtenemos productos en alerta (stock <= stock_minimo) ordenados por menor stock
                     cursor.execute("""
-                        SELECT sku, producto, nivel, horas_restantes
-                        FROM alertas_quiebre WHERE activo=1 
-                        ORDER BY horas_restantes ASC LIMIT 3
+                        SELECT p.sku, p.nombre AS producto, 
+                               p.stock_total, p.stock_minimo, p.venta_dia
+                        FROM productos p
+                        WHERE p.activo=1 AND p.stock_total <= p.stock_minimo
+                        ORDER BY p.stock_total ASC LIMIT 3
                     """)
-                    alertas = cursor.fetchall()
+                    rows = cursor.fetchall()
+                    for row in rows:
+                        stock = row['stock_total']
+                        minimo = row['stock_minimo']
+                        venta = float(row['venta_dia'] or 0)
+                        
+                        nivel = calcular_nivel_estatico(stock, minimo)
+                        
+                        horas = (stock / venta * 24) if venta > 0 else 9999
+                        
+                        alertas.append({
+                            'sku': row['sku'],
+                            'producto': row['producto'],
+                            'nivel': nivel,
+                            'horas_restantes': round(horas, 1)
+                        })
         return alertas
     except Exception as e:
         print(repr(e))
         return []
 
 def obtener_datos_graficos_dashboard():
-    """
-    Retorna los tres conjuntos de datos necesarios para los graficos del dashboard:
-      - stock_por_categoria: SUM de stock_total agrupado por categoria.
-      - tendencia_ajustes:   Conteo de ajustes de los ultimos 7 dias.
-      - alertas_por_nivel:   Conteo de alertas activas agrupadas por nivel.
-    Sin SQL en el controlador (cumple regla de 3 capas).
-    """
     try:
         conn = obtenerconexion()
         if not conn:
@@ -69,13 +83,21 @@ def obtener_datos_graficos_dashboard():
                 cursor.execute(sql)
                 tendencia_ajustes = cursor.fetchall()
 
-                # 3. Alertas por nivel
-                sql =  " SELECT nivel, COUNT(*) AS total "
-                sql += "   FROM alertas_quiebre "
-                sql += "  WHERE activo = 1 "
-                sql += "  GROUP BY nivel "
-                cursor.execute(sql)
-                alertas_por_nivel = cursor.fetchall()
+                # 3. Alertas por nivel (calculado en Python)
+                cursor.execute("SELECT stock_total, stock_minimo FROM productos WHERE activo=1")
+                productos = cursor.fetchall()
+                
+                niveles_count = {'critico': 0, 'urgente': 0, 'ok': 0}
+                for p in productos:
+                    stock = p['stock_total']
+                    minimo = p['stock_minimo']
+                    nivel = calcular_nivel_estatico(stock, minimo)
+                    niveles_count[nivel] += 1
+                
+                alertas_por_nivel = []
+                for n in ['critico', 'urgente', 'ok']:
+                    if niveles_count[n] > 0:
+                        alertas_por_nivel.append({'nivel': n, 'total': niveles_count[n]})
 
         return {
             'stock_por_categoria': stock_por_categoria,

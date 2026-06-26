@@ -8,7 +8,7 @@ class clsProducto:
     def __init__(self, p_id=None, p_sku=None, p_nombre=None,
                  p_categoria=None, p_stock_total=None,
                  p_precio_unitario=None, p_venta_dia=None,
-                 p_ubicacion_gondola=None):
+                 p_stock_minimo=None, p_ubicacion_gondola=None):
         self.id               = p_id
         self.sku              = p_sku
         self.nombre           = p_nombre
@@ -16,8 +16,8 @@ class clsProducto:
         self.stock_total      = p_stock_total
         self.precio_unitario  = p_precio_unitario
         self.venta_dia        = p_venta_dia
+        self.stock_minimo     = p_stock_minimo
         self.ubicacion_gondola = p_ubicacion_gondola
-
 # ==============================================================================
 # AUTENTICACION
 # ==============================================================================
@@ -59,7 +59,7 @@ def leer_productos(p_busqueda=None):
                 with conn.cursor() as cursor:
                     sql =  " SELECT id, sku, nombre, categoria, "
                     sql += "        stock_total, precio_unitario, "
-                    sql += "        venta_dia, ubicacion_gondola, activo "
+                    sql += "        venta_dia, stock_minimo, ubicacion_gondola, activo "
                     sql += "   FROM productos "
                     sql += "  WHERE activo = 1 "
                     params = ()
@@ -88,7 +88,7 @@ def leer_producto_por_id(p_id):
                 with conn.cursor() as cursor:
                     sql =  " SELECT id, sku, nombre, categoria, "
                     sql += "        stock_total, precio_unitario, "
-                    sql += "        venta_dia, ubicacion_gondola, activo "
+                    sql += "        venta_dia, stock_minimo, ubicacion_gondola, activo "
                     sql += "   FROM productos "
                     sql += "  WHERE id = %s AND activo = 1 "
                     cursor.execute(sql, (p_id,))
@@ -111,8 +111,8 @@ def insertar_producto(p_producto):
 
                     sql  = " INSERT INTO `productos` "
                     sql += "   (`sku`, `nombre`, `categoria`, `stock_total`, "
-                    sql += "    `precio_unitario`, `venta_dia`, `ubicacion_gondola`) "
-                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s) "
+                    sql += "    `precio_unitario`, `venta_dia`, `stock_minimo`, `ubicacion_gondola`) "
+                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s, %s) "
                     cursor.execute(sql, (
                         p_producto.sku,
                         p_producto.nombre,
@@ -120,6 +120,7 @@ def insertar_producto(p_producto):
                         p_producto.stock_total or 0,
                         p_producto.precio_unitario or 0,
                         p_producto.venta_dia or 0,
+                        p_producto.stock_minimo or 0,
                         p_producto.ubicacion_gondola or '',
                     ))
                     nuevo_id = cursor.lastrowid
@@ -157,7 +158,7 @@ def actualizar_producto(p_producto):
                     sql += "    SET `sku` = %s, `nombre` = %s, "
                     sql += "        `categoria` = %s, `stock_total` = %s, "
                     sql += "        `precio_unitario` = %s, `venta_dia` = %s, "
-                    sql += "        `ubicacion_gondola` = %s "
+                    sql += "        `stock_minimo` = %s, `ubicacion_gondola` = %s "
                     sql += "  WHERE `id` = %s "
                     cursor.execute(sql, (
                         p_producto.sku,
@@ -166,6 +167,7 @@ def actualizar_producto(p_producto):
                         p_producto.stock_total or 0,
                         p_producto.precio_unitario or 0,
                         p_producto.venta_dia or 0,
+                        p_producto.stock_minimo or 0,
                         p_producto.ubicacion_gondola or '',
                         p_producto.id,
                     ))
@@ -226,10 +228,9 @@ def buscar_sku(p_sku):
                 with conn.cursor() as cursor:
                     sql =  " SELECT p.id, p.sku, p.nombre, p.categoria, "
                     sql += "        p.stock_total, p.precio_unitario, "
-                    sql += "        p.venta_dia, p.ubicacion_gondola, "
-                    sql += "        a.nivel AS alerta_nivel, "
-                    sql += "        a.horas_restantes, "
-                    sql += "        a.estado_transf "
+                    sql += "        p.venta_dia, p.stock_minimo, p.ubicacion_gondola, "
+                    sql += "        COALESCE(a.estado_transf, 'Sin transferencia activa') "
+                    sql += "            AS estado_transf "
                     sql += "   FROM productos p "
                     sql += "   LEFT JOIN alertas_quiebre a "
                     sql += "          ON a.producto_id = p.id AND a.activo = 1 "
@@ -355,6 +356,8 @@ def leer_conteos():
         return []
 
 def insertar_conteo(p_conteo):
+    # NOTA: 'diferencia' es columna GENERATED en el schema; se omite del INSERT
+    # y MySQL la calcula automáticamente como (stock_contado - stock_sistema).
     try:
         conn = obtenerconexion()
         if conn:
@@ -362,15 +365,14 @@ def insertar_conteo(p_conteo):
                 with conn.cursor() as cursor:
                     sql =  " INSERT INTO conteos_manuales "
                     sql += " (producto_id, usuario_id, stock_sistema, "
-                    sql += "  stock_contado, diferencia, motivo, estado, fecha) "
-                    sql += " VALUES (%s, %s, %s, %s, %s, %s, %s, NOW()) "
-                    
+                    sql += "  stock_contado, motivo, estado, fecha) "
+                    sql += " VALUES (%s, %s, %s, %s, %s, %s, NOW()) "
+
                     cursor.execute(sql, (
                         p_conteo.producto_id,
                         p_conteo.usuario_id,
                         p_conteo.stock_sistema,
                         p_conteo.stock_contado,
-                        p_conteo.diferencia,
                         p_conteo.motivo,
                         p_conteo.estado or 'aplicado'
                     ))

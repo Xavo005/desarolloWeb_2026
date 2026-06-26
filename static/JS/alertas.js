@@ -1,17 +1,17 @@
 // Control visual del tiempo de actualización
 document.getElementById('last-update').textContent = new Date().toLocaleTimeString('es-PE', {
-  hour: '2-digit', 
+  hour: '2-digit',
   minute: '2-digit'
 });
 
 // Funciones locales para el Modal
 function abrirEditar(id, nombre, unidades, venta, estado, stockMinimo) {
-  document.getElementById('edit-alerta-id').value = id;
+  document.getElementById('edit-producto-id').value = id;
   document.getElementById('edit-modal-title').textContent = `Editar: ${nombre}`;
   document.getElementById('edit-unidades').value = unidades;
   document.getElementById('edit-venta').value = venta;
   document.getElementById('edit-estado').value = estado;
-  
+
   // Logica para modo dinámico
   const modo = document.getElementById('edit-modo').value;
   const grupoVenta = document.getElementById('grupo-venta');
@@ -46,7 +46,7 @@ function cerrarEditar() {
 }
 
 // Cerrar al hacer click fuera
-document.getElementById('modal-edit-alerta').addEventListener('click', function(e) {
+document.getElementById('modal-edit-alerta').addEventListener('click', function (e) {
   if (e.target === this) cerrarEditar();
 });
 
@@ -78,8 +78,8 @@ function limpiarErrores() {
   inputVenta.classList.remove('error');
   const errorUnid = document.getElementById('error-unidades');
   const errorVenta = document.getElementById('error-venta');
-  if(errorUnid) errorUnid.style.display = 'none';
-  if(errorVenta) errorVenta.style.display = 'none';
+  if (errorUnid) errorUnid.style.display = 'none';
+  if (errorVenta) errorVenta.style.display = 'none';
 }
 
 function validarCampo(input) {
@@ -102,7 +102,7 @@ if (inputVenta) inputVenta.addEventListener('input', () => validarCampo(inputVen
 
 // Validación al enviar
 if (form) {
-  form.addEventListener('submit', function(e) {
+  form.addEventListener('submit', function (e) {
     const modo = document.getElementById('edit-modo').value;
     const v1 = validarCampo(inputUnidades);
     let v2 = true;
@@ -119,12 +119,12 @@ if (form) {
 }
 
 // Handler para botones de eliminar alerta con modal Tottus
-document.querySelectorAll('.btn-eliminar-alerta').forEach(function(btn) {
-  btn.addEventListener('click', function(e) {
+document.querySelectorAll('.btn-eliminar-alerta').forEach(function (btn) {
+  btn.addEventListener('click', function (e) {
     e.preventDefault();
-    var url    = btn.getAttribute('data-url');
+    var url = btn.getAttribute('data-url');
     var nombre = btn.getAttribute('data-nombre');
-    showModal('Descartar la alerta de ' + nombre, function() {
+    showModal('Descartar la alerta de ' + nombre, function () {
       window.location.href = url;
     });
   });

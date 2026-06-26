@@ -1,0 +1,179 @@
+-- ============================================================
+--  EL HUECO RESTOBAR — SCHEMA DE BASE DE DATOS
+--  Archivo : schema_elhueco.sql
+--  Versión : 2.1  |  Fecha: 2026-06-13
+--  Contiene: CREATE DATABASE + tablas + vistas + FK
+--  SIN INSERT — usar inserts_elhueco.sql para datos semilla
+-- ============================================================
+
+DROP DATABASE IF EXISTS `botica_sistema`;
+CREATE DATABASE `botica_sistema`
+    CHARACTER SET utf8mb4
+    COLLATE utf8mb4_unicode_ci;
+
+USE `botica_sistema`;
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+
+-- ============================================================
+-- TABLA: USUARIOS
+-- Roles de negocio El Hueco: operario / gerente
+-- ============================================================
+CREATE TABLE `usuarios` (
+    `id`              INT          AUTO_INCREMENT PRIMARY KEY,
+    `codigo_empleado` VARCHAR(20)  UNIQUE NOT NULL,
+    `nombre`          VARCHAR(100) NOT NULL,
+    `email`           VARCHAR(100) UNIQUE,
+    `password`        VARCHAR(20)  NOT NULL,
+    `rol`             ENUM('operario','gerente') DEFAULT 'operario',
+    `sede`            VARCHAR(100) DEFAULT 'Chiclayo',
+    `palabra_clave`   VARCHAR(100) NOT NULL,
+    `activo`          TINYINT(1)   DEFAULT 1,
+    `ultimo_login`    DATETIME     NULL,
+    `created_at`      DATETIME     DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+
+-- ============================================================
+-- TABLA: PRODUCTOS
+-- sku VARCHAR(50) -> soporta EAN-13 (13 chars) y codigos internos
+-- ============================================================
+CREATE TABLE `productos` (
+    `id`                INT           AUTO_INCREMENT PRIMARY KEY,
+    `sku`               VARCHAR(50)   UNIQUE NOT NULL,
+    `nombre`            VARCHAR(150)  NOT NULL,
+    `categoria`         VARCHAR(60),
+    `stock_total`       INT           NOT NULL DEFAULT 0,
+    `ubicacion_gondola` VARCHAR(100),
+    `precio_unitario`   DECIMAL(10,2),
+    `venta_dia`         DECIMAL(8,2)  DEFAULT 0,
+    `stock_minimo`      INT NOT NULL DEFAULT 0,
+    `activo`            TINYINT(1)    DEFAULT 1,
+    `created_at`        DATETIME      DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+
+-- ============================================================
+-- TABLA: SEGMENTACION_INVENTARIO
+-- ============================================================
+CREATE TABLE `segmentacion_inventario` (
+    `id`                       INT        AUTO_INCREMENT PRIMARY KEY,
+    `producto_id`              INT        NOT NULL,
+    `usuario_id`               INT,
+    `stock_cliente_final`      INT        NOT NULL,
+    `stock_revendedor`         INT        NOT NULL,
+    `limite_compra_final`      INT        DEFAULT 0,
+    `limite_compra_revendedor` INT        DEFAULT 0,
+    `motivo`                   TEXT,
+    `activo`                   TINYINT(1) DEFAULT 1,
+    `fecha_creacion`           DATETIME   DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`               DATETIME   DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`producto_id`) REFERENCES `productos`(`id`) ON DELETE RESTRICT,
+    FOREIGN KEY (`usuario_id`)  REFERENCES `usuarios`(`id`)  ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+
+-- ============================================================
+-- TABLA: ALERTAS_QUIEBRE
+-- horas_restantes y nivel son columnas GENERATED (calculadas)
+-- stock_minimo: umbral de seguridad para modo estatico
+-- ============================================================
+CREATE TABLE `alertas_quiebre` (
+    `id`            INT          AUTO_INCREMENT PRIMARY KEY,
+    `producto_id`   INT          UNIQUE,
+    `estado_transf` VARCHAR(100) DEFAULT 'Sin transferencia activa',
+    `activo`        TINYINT(1)   DEFAULT 1,
+    `updated_at`    DATETIME     DEFAULT CURRENT_TIMESTAMP 
+                                 ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (`producto_id`) REFERENCES `productos`(`id`) 
+                                ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+
+-- ============================================================
+-- TABLA: CONTEOS_MANUALES
+-- ============================================================
+CREATE TABLE `conteos_manuales` (
+    `id`            INT       AUTO_INCREMENT PRIMARY KEY,
+    `producto_id`   INT       NOT NULL,
+    `usuario_id`    INT       NOT NULL,
+    `stock_sistema` INT       NOT NULL,
+    `stock_contado` INT       NOT NULL,
+    `diferencia`    INT       GENERATED ALWAYS AS (`stock_contado` - `stock_sistema`) STORED,
+    `motivo`        TEXT,
+    `estado`        ENUM('pendiente','aplicado','rechazado') DEFAULT 'pendiente',
+    `fecha`         DATETIME  DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`producto_id`) REFERENCES `productos`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`usuario_id`)  REFERENCES `usuarios`(`id`)  ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+
+-- ============================================================
+-- TABLA: HISTORIAL_AJUSTES
+-- ============================================================
+CREATE TABLE `historial_ajustes` (
+    `id`               INT           AUTO_INCREMENT PRIMARY KEY,
+    `producto_id`      INT           NOT NULL,
+    `usuario_id`       INT           NOT NULL,
+    `empleado_nombre`  VARCHAR(100),
+    `accion`           ENUM('CREATE','UPDATE','DELETE','TOGGLE','CONTEO') NOT NULL,
+    `campo_modificado` VARCHAR(80),
+    `valor_anterior`   VARCHAR(255),
+    `valor_nuevo`      VARCHAR(255),
+    `motivo`           TEXT,
+    `fecha`            DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (`producto_id`) REFERENCES `productos`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`usuario_id`)  REFERENCES `usuarios`(`id`)  ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+
+-- ============================================================
+-- VISTA: V_ALERTAS_ACTIVAS
+-- ============================================================
+CREATE OR REPLACE VIEW `v_alertas_activas` AS
+SELECT
+    p.id            AS producto_id,
+    COALESCE(a.id, 0) AS alerta_id,
+    p.sku,
+    p.nombre        AS producto,
+    p.categoria,
+    p.stock_total   AS unidades,
+    p.stock_minimo,
+    p.venta_dia,
+    p.ubicacion_gondola,
+    COALESCE(a.estado_transf, 'Sin transferencia activa') AS estado_transf
+FROM productos p
+LEFT JOIN alertas_quiebre a ON a.producto_id = p.id AND a.activo = 1
+WHERE p.activo = 1 AND p.stock_total <= p.stock_minimo
+ORDER BY p.stock_total ASC;
+
+
+-- ============================================================
+-- VISTA: V_HISTORIAL_COMPLETO
+-- ============================================================
+CREATE OR REPLACE VIEW `v_historial_completo` AS
+SELECT
+    h.id,
+    h.fecha,
+    h.empleado_nombre,
+    u.rol             AS empleado_rol,
+    p.nombre          AS producto_nombre,
+    p.sku,
+    h.accion,
+    h.campo_modificado,
+    h.valor_anterior,
+    h.valor_nuevo,
+    h.motivo
+FROM `historial_ajustes` h
+JOIN `productos` p ON h.producto_id = p.id
+JOIN `usuarios`  u ON h.usuario_id  = u.id
+ORDER BY h.fecha DESC;
+
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================
+-- FIN DEL SCHEMA
+-- Ejecutar a continuacion: inserts_botica.sql
+-- ============================================================
