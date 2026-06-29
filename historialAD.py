@@ -23,11 +23,13 @@ class clsHistorial:
 # CRUD — HISTORIAL - Diego Calderon
 # ==============================================================================
 
-def leer():
+def leer(p_limite=200): # Agregamos p_limite aquí
     try:
         conn = obtenerconexion()
         with conn.cursor() as cursor:
-            cursor.execute("SELECT * FROM v_historial_completo ORDER BY fecha DESC")
+            # Agregamos el límite a la consulta
+            sql = "SELECT * FROM v_historial_completo ORDER BY fecha DESC LIMIT %s"
+            cursor.execute(sql, (p_limite,))
             return cursor.fetchall()
     except Exception: raise
 

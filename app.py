@@ -1,3 +1,4 @@
+print("--- EL ARCHIVO APP.PY ESTÁ ARRANCANDO ---")
 import csv
 import io
 import os
@@ -6,7 +7,8 @@ import numpy as np
 from datetime import datetime
 from dotenv import load_dotenv
 from bd import obtenerconexion
-from flask_jwt import JWT, jwt_required, current_identity
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
+from flask import make_response
 
 #vision
 try:
@@ -29,7 +31,8 @@ from flask import (
 )
 
 from productosAD import (
-    registrar_historial, leer_historial,          # leer_historial: Fix P7
+    leer_historial,
+    registrar_historial, 
     autenticar_usuario,
     clsProducto, leer_productos, leer_producto_por_id,
     insertar_producto, actualizar_producto, eliminar_producto,
@@ -97,7 +100,63 @@ def identity(payload):
 app = Flask(__name__)
 app.secret_key = 'botica_sgi_secret_2026'
 
-jwt = JWT(app, authenticate, identity)
+jwt = JWTManager(app)
+
+
+
+
+from flask_jwt_extended import create_access_token
+
+@app.route('/auth', methods=['POST'])
+def auth():
+    datos = request.get_json()
+    # Asegúrate de usar los nombres que tu BD espera
+    # Tu BD espera 'codigo_empleado' y 'password'
+    username = datos.get('codigo_empleado') # <--- Cambiado de 'username' a 'codigo_empleado'
+    password = datos.get('password')
+    
+    print(f"Intentando entrar con: {username} y {password}") # Mira esto en la terminal
+    
+    usuario = authenticate(username, password)
+    
+    if usuario:
+        access_token = create_access_token(identity=str(usuario['id']))
+        return jsonify(access_token=access_token)
+    else:
+        return jsonify({"msg": "Credenciales inválidas"}), 401
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # ==============================================================================
 # FUNCIONES AUXILIARES CENTRALIZADAS
@@ -128,6 +187,21 @@ def _verificar_dependencias_producto(prod_id):
 def _verificar_dependencias_trabajador(usuario_id):
     """Capa de controlador: delega validacion a tottusAD."""
     return verificar_dependencias_trabajador(usuario_id)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # ==============================================================================
@@ -190,7 +264,12 @@ def dashboard():
                                stats=stats,
                                alertas_recientes=alertas_recientes)
     except Exception as e:
-        return render_template('error_500.html'), 500
+        # AQUÍ ESTÁ LA MAGIA: Imprime el error en la terminal y lo muestra en el navegador
+        print("--- ERROR EN DASHBOARD ---")
+        print(e)
+        import traceback
+        traceback.print_exc() # Esto da el detalle completo en la terminal
+        return f"<h1>Error detectado: {str(e)}</h1><pre>{traceback.format_exc()}</pre>", 500
 
 @app.route('/api/dashboard/graficos')
 def api_dashboard_graficos():
@@ -316,15 +395,28 @@ def inject_alertas():
     return dict(alertas_count=contar_alertas())
 
 @app.route('/historial')
-def historial():
-    # Simplificamos al máximo: si la función falla, devolvemos lista vacía directamente
-    # Esto elimina el try/except innecesario dentro de la ruta--CAMBIO -1.1
-    registros = leer_historial(p_limite=100) or []
+def pagina_historial():
+    # 1. Definimos una variable de error
+    mensaje_error = "Ninguno"
+    try:
+        # 2. Intentamos las operaciones
+        token = create_access_token(identity=str(session.get('id')))
+        registros = leer() 
+        return render_template('historial.html', registros=registros, token=token)
     
-    return render_template('historial.html', 
-                           active_page='dashboard', 
-                           registros=registros)
-
+    except Exception as e:
+        # 3. Si algo falla, atrapamos el error y lo devolvemos en texto plano en el navegador
+        import traceback
+        error_completo = traceback.format_exc()
+        return f"""
+        <h1>¡ERROR DETECTADO!</h1>
+        <p>Este mensaje aparece porque el servidor falló al cargar el historial.</p>
+        <hr>
+        <h2>Error técnico:</h2>
+        <pre>{error_completo}</pre>
+        <hr>
+        <p>Copia y pega este texto, es la única forma de saber qué línea está fallando.</p>
+        """, 500
 
 @app.route('/perfil')
 def perfil():
@@ -809,76 +901,7 @@ def api_guardar_conteo():
         # Si aquí sale el error, es que algo en el JSON de arriba falló (ej: falta un campo)
         return jsonify({"code": -1, "message": str(e)})
 
-# ==============================================================================
-# HISTORIAL -DIEGO CALDERON
-# ==============================================================================
 
-# 1. api_leer_entidades [GET]
-@app.route('/api/leer_entidades', methods=['GET'])
-def api_leer_entidades():
-    try:
-        data = leer() # Sin el prefijo
-        return jsonify(data)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-# 2. api_leer_entidadxd [GET, POST]
-@app.route('/api/leer_entidadxd', methods=['GET', 'POST'])
-def api_leer_entidadxd():
-    p_id = request.args.get('id') if request.method == 'GET' else request.json.get('id')
-    try:
-        data = leer_por_id(p_id)
-        
-        # Si hay datos, devolvemos 200 (se pone por defecto al no especificar nada)
-        if data:
-            return jsonify(data) 
-        
-        # Si NO hay datos, ahí recién devolvemos 404
-        else:
-            return jsonify({"mensaje": "No encontrado"}), 404
-            
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500.
-
-# 3. api_guardarentidad [POST]
-@app.route('/api/guardarentidad', methods=['POST'])
-def api_guardarentidad():
-    data = request.json
-    # Quitamos 'p_empleado_rol'
-    h = clsHistorial(
-        p_producto_id=data.get('producto_id'),
-        p_usuario_id=data.get('usuario_id'),
-        p_empleado_nombre=data.get('empleado_nombre'),
-        p_accion=data.get('accion'),
-        p_campo=data.get('campo_modificado'),
-        p_anterior=data.get('valor_anterior'),
-        p_nuevo=data.get('valor_nuevo'),
-        p_motivo=data.get('motivo')
-    )
-    resultado = guardar(h)
-    return jsonify({"success": resultado})
-
-# 4. api_actualizarentidad [POST]
-@app.route('/api/actualizarentidad', methods=['POST'])
-def api_actualizarentidad():
-    data = request.json
-    p_id = data.get('id')
-    h = clsHistorial(
-        p_accion=data.get('accion'),
-        p_campo=data.get('campo_modificado'),
-        p_anterior=data.get('valor_anterior'),
-        p_nuevo=data.get('valor_nuevo'),
-        p_motivo=data.get('motivo')
-    )
-    resultado = actualizar(p_id, h) # Sin el prefijo
-    return jsonify({"success": resultado})
-
-# 5. api_eliminarentidad [POST]
-@app.route('/api/eliminarentidad', methods=['POST'])
-def api_eliminarentidad():
-    data = request.json
-    resultado = eliminar(data.get('id')) # Sin el prefijo
-    return jsonify({"success": resultado})
 
 
 
@@ -1593,12 +1616,68 @@ def api_leer_historialxid():
 @jwt_required()
 def api_leer_historial_jwt():
     try:
-        resultado = leer_historial(p_limite=200)
+        # CAMBIO: Usamos 'leer' (de historialAD) en lugar de 'leer_historial' (de productosAD)
+        resultado = leer(p_limite=200) 
+        
         if resultado:
             for row in resultado:
                 if isinstance(row.get('fecha'), datetime):
                     row['fecha'] = row['fecha'].strftime('%d/%m/%Y %H:%M')
         return jsonify({"code": 1, "data": resultado})
+    except Exception as e:
+        return jsonify({"code": -1, "message": repr(e)})
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@app.route('/api_exportar_historial_csv', methods=['GET'])
+@jwt_required()
+def api_exportar_historial_csv():
+    try:
+        # Obtenemos todos los registros (puedes aumentar el límite si necesitas más)
+        registros = leer_historial(p_limite=1000)
+        
+        if not registros:
+            return jsonify({"code": 0, "message": "No hay datos para exportar"})
+
+        # Creamos un archivo en memoria
+        si = io.StringIO()
+        cw = csv.writer(si)
+        
+        # Escribimos los encabezados (ajusta según los campos que tenga tu objeto Historial)
+        cw.writerow(['ID', 'Producto', 'Accion', 'Campo', 'Anterior', 'Nuevo', 'Motivo', 'Fecha'])
+        
+        # Escribimos las filas
+        for r in registros:
+            cw.writerow([
+                r.get('id'), r.get('producto_nombre', 'N/A'), r.get('accion'), 
+                r.get('campo'), r.get('valor_anterior'), r.get('valor_nuevo'), 
+                r.get('motivo'), r.get('fecha')
+            ])
+
+        # Preparamos la respuesta para descarga
+        output = make_response(si.getvalue())
+        output.headers["Content-Disposition"] = "attachment; filename=historial_ajustes.csv"
+        output.headers["Content-type"] = "text/csv"
+        return output
+
     except Exception as e:
         return jsonify({"code": -1, "message": repr(e)})
 
