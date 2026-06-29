@@ -1648,7 +1648,6 @@ def api_leer_historial_jwt():
 
 
 @app.route('/api_exportar_historial_csv', methods=['GET'])
-@jwt_required()
 def api_exportar_historial_csv():
     try:
         # Obtenemos todos los registros (puedes aumentar el límite si necesitas más)
