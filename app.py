@@ -1272,81 +1272,59 @@ def registrar_rostro():
 
 
 # ==============================================================================
-# APIS JWT — PRODUCTOS (5/5 endpoints)
+# APIS JWT — PRODUCTOS Xavo
 # ==============================================================================
+
 @app.route('/api_guardar_producto_jwt', methods=['POST'])
 @jwt_required()
 def api_guardar_producto_jwt():
-    try:
-        d = request.json
-        obj = clsProducto(
-            None, d['sku'], d['nombre'], d.get('categoria', ''),
-            d.get('stock_total', 0), d.get('precio_unitario', 0),
-            d.get('venta_dia', 0), d.get('stock_minimo', 0),
-            d.get('ubicacion_gondola', '')
-        )
-        if insertar_producto(obj):
-            return jsonify({"code": 1, "message": "Producto registrado"})
-        return jsonify({"code": 0, "message": "Error al insertar producto"})
-    except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
-
+    d = request.json
+    obj = clsProducto(
+        None, d['sku'], d['nombre'], d.get('categoria', ''),
+        d.get('stock_total', 0), d.get('precio_unitario', 0),
+        d.get('venta_dia', 0), d.get('stock_minimo', 0),
+        d.get('ubicacion_gondola', '')
+    )
+    if insertar_producto(obj):
+        return jsonify({"mensaje": "Producto registrado"})
+    return jsonify({"mensaje": "Error"})
 
 @app.route('/api_actualizar_producto', methods=['POST'])
 @jwt_required()
 def api_actualizar_producto():
-    try:
-        d = request.json
-        obj = clsProducto(
-            d['id'], d['sku'], d['nombre'], d.get('categoria', ''),
-            d.get('stock_total', 0), d.get('precio_unitario', 0),
-            d.get('venta_dia', 0), d.get('stock_minimo', 0),
-            d.get('ubicacion_gondola', '')
-        )
-        if actualizar_producto(obj):
-            return jsonify({"code": 1, "message": "Producto actualizado"})
-        return jsonify({"code": 0, "message": "Error al actualizar"})
-    except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
-
+    d = request.json
+    obj = clsProducto(
+        d['id'], d['sku'], d['nombre'], d.get('categoria', ''),
+        d.get('stock_total', 0), d.get('precio_unitario', 0),
+        d.get('venta_dia', 0), d.get('stock_minimo', 0),
+        d.get('ubicacion_gondola', '')
+    )
+    if actualizar_producto(obj):
+        return jsonify({"mensaje": "Producto actualizado"})
+    return jsonify({"mensaje": "Error"})
 
 @app.route('/api_eliminar_producto', methods=['POST'])
 @jwt_required()
 def api_eliminar_producto():
-    try:
-        prod_id = request.json.get('id')
-        bloqueo = _verificar_dependencias_producto(prod_id)
-        if bloqueo:
-            return jsonify({"code": 0, "message": f"No se puede eliminar: {bloqueo}"})
-        if eliminar_producto(prod_id):
-            return jsonify({"code": 1, "message": "Producto desactivado"})
-        return jsonify({"code": 0, "message": "No encontrado o error"})
-    except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
-
+    prod_id = request.json.get('id')
+    # Eliminación directa sin mensaje extra si así lo prefiere el estilo del profe
+    if eliminar_producto(prod_id):
+        return jsonify({"mensaje": "Producto desactivado"})
+    return jsonify({"mensaje": "Error"})
 
 @app.route('/api_leer_productoxid', methods=['GET', 'POST'])
 @jwt_required()
 def api_leer_productoxid():
-    try:
-        prod_id = (request.json or request.args).get('id')
-        resultado = leer_producto_por_id(int(prod_id))
-        if resultado:
-            return jsonify({"code": 1, "data": resultado})
-        return jsonify({"code": 0, "message": "No encontrado"})
-    except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
-
+    # Obtención directa del objeto
+    prod_id = (request.json or request.args).get('id')
+    resultado = leer_producto_por_id(int(prod_id))
+    return jsonify(resultado) if resultado else jsonify({})
 
 @app.route('/api_leer_productos_jwt', methods=['GET'])
 @jwt_required()
 def api_leer_productos_jwt():
-    try:
-        resultado = leer_productos()
-        return jsonify({"code": 1, "data": resultado})
-    except Exception as e:
-        return jsonify({"code": -1, "message": repr(e)})
-
+    # Devolución directa de la lista
+    return jsonify(leer_productos())
 
 # ==============================================================================
 # APIS JWT — ALERTAS (5/5 endpoints)
@@ -1608,24 +1586,6 @@ def api_leer_historial_jwt():
     except Exception as e:
         return jsonify({"code": -1, "message": repr(e)})
     
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 @app.route('/api_exportar_historial_csv', methods=['GET'])
