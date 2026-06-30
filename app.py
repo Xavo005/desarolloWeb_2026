@@ -7,8 +7,8 @@ import numpy as np
 from datetime import datetime
 from dotenv import load_dotenv
 from bd import obtenerconexion
-from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 from flask import make_response
+from flask_jwt import JWT, jwt_required, current_identity
 
 #vision
 try:
@@ -100,30 +100,11 @@ def identity(payload):
 app = Flask(__name__)
 app.secret_key = 'botica_sgi_secret_2026'
 
-jwt = JWTManager(app)
+jwt = JWT(app, authenticate, identity)
 
 
 
 
-from flask_jwt_extended import create_access_token
-
-@app.route('/auth', methods=['POST'])
-def auth():
-    datos = request.get_json()
-    # Asegúrate de usar los nombres que tu BD espera
-    # Tu BD espera 'codigo_empleado' y 'password'
-    username = datos.get('codigo_empleado') # <--- Cambiado de 'username' a 'codigo_empleado'
-    password = datos.get('password')
-    
-    print(f"Intentando entrar con: {username} y {password}") # Mira esto en la terminal
-    
-    usuario = authenticate(username, password)
-    
-    if usuario:
-        access_token = create_access_token(identity=str(usuario['id']))
-        return jsonify(access_token=access_token)
-    else:
-        return jsonify({"msg": "Credenciales inválidas"}), 401
 
 
 
